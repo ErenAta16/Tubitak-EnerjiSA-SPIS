@@ -28,7 +28,9 @@ def _not_implemented(stage: str) -> None:
 
 def stage_ingest() -> None:
     """Load raw inputs into typed interim frames."""
-    _not_implemented("ingest")
+    from spis.ingest import ingest_all
+
+    ingest_all()
 
 
 def stage_clean() -> None:
