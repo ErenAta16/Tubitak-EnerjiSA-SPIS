@@ -10,6 +10,7 @@ import requests
 
 from spis import config
 from spis.data_sources._cache import read_cache, write_cache
+from spis.sites import DEFAULT_SITE, get_site, site_external_subdir
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,21 +22,38 @@ AQ_UNITS = {
     "dust": "ug/m3",
     "aerosol_optical_depth": "dimensionless",
 }
+PARQUET_NAME = "daily_cams.parquet"
+SIDECAR_NAME = "daily_cams.json"
+
+
+def _cache_source(site_key: str) -> str:
+    return site_external_subdir("open_meteo_aq", site_key)
 
 
 def fetch_open_meteo_air_quality(
+    site_key: str = DEFAULT_SITE,
     force_refresh: bool = False,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
-    """Fetch or load cached daily-aggregated CAMS air-quality for the plant location."""
+    """Fetch or load cached daily-aggregated CAMS air-quality for a site."""
+    site = get_site(site_key)
+    cache_src = _cache_source(site_key)
+
     if not force_refresh:
-        try:
-            return read_cache("open_meteo_aq", "daily_cams.parquet", "daily_cams.json")
-        except FileNotFoundError:
-            pass
+        for src in (cache_src, "open_meteo_aq") if site_key == DEFAULT_SITE else (cache_src,):
+            try:
+                frame, metadata = read_cache(src, PARQUET_NAME, SIDECAR_NAME)
+                metadata = {
+                    **metadata,
+                    "site_key": site_key,
+                    "provisional": site.coordinates_provisional,
+                }
+                return frame, metadata
+            except FileNotFoundError:
+                continue
 
     params = {
-        "latitude": config.PLANT_LAT,
-        "longitude": config.PLANT_LON,
+        "latitude": site.lat,
+        "longitude": site.lon,
         "hourly": ",".join(AQ_VARIABLES),
         "start_date": config.IRRADIANCE_START_DATE,
         "end_date": config.IRRADIANCE_END_DATE,
@@ -66,10 +84,13 @@ def fetch_open_meteo_air_quality(
         "url": OPEN_METEO_AQ_URL,
         "request_params": params,
         "units": AQ_UNITS,
+        "site_key": site_key,
+        "provisional": site.coordinates_provisional,
+        "coordinates_note": site.coordinates_note,
         "aggregation": "hourly mean -> daily mean",
         "date_span": {"start": coverage_start, "end": coverage_end},
     }
-    write_cache("open_meteo_aq", "daily_cams.parquet", "daily_cams.json", daily, metadata)
+    write_cache(cache_src, PARQUET_NAME, SIDECAR_NAME, daily, metadata)
     return daily, metadata
 
 

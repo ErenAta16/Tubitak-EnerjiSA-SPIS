@@ -14,7 +14,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 def cache_path(source: str, name: str) -> Path:
-    """Return the cache directory for a named external source artifact."""
+    """Return the cache directory for a named external source artifact.
+
+    ``source`` may include a site subpath, e.g. ``nasa_power/balikesir``.
+    """
     from spis import config
 
     path = config.DATA_EXTERNAL / source

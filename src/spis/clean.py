@@ -270,14 +270,20 @@ def save_temp_correction_figure(master: pd.DataFrame) -> None:
     LOGGER.info("Saved temperature correction figure to %s", png_path)
 
 
-def build_master_table() -> tuple[pd.DataFrame, dict[str, Any]]:
+def build_master_table(site_key: str = "canakkale") -> tuple[pd.DataFrame, dict[str, Any]]:
     """Build the analysis-ready day-level master table from P1 interim artifacts."""
-    irradiance = read_interim("irradiance_daily")
-    downtime_days = read_interim("downtime_days")
-    washing = read_interim("washing_events")
+    from spis.sites import get_site
 
-    nasa, nasa_meta = fetch_nasa_power_daily()
-    cams, cams_meta = fetch_open_meteo_air_quality()
+    site = get_site(site_key)
+    if not site.operational_data_available:
+        raise ValueError(f"Site {site_key!r} has no operational data; cannot build master table")
+
+    irradiance = read_interim("irradiance_daily", site_key=site_key)
+    downtime_days = read_interim("downtime_days", site_key=site_key)
+    washing = read_interim("washing_events", site_key=site_key)
+
+    nasa, nasa_meta = fetch_nasa_power_daily(site_key=site_key)
+    cams, cams_meta = fetch_open_meteo_air_quality(site_key=site_key)
     validate_nasa_power(nasa)
     validate_open_meteo_aq(cams)
 
@@ -292,9 +298,10 @@ def build_master_table() -> tuple[pd.DataFrame, dict[str, Any]]:
     unit_stats = document_scada_nasa_units(master)
     save_temp_correction_figure(master)
 
-    write_processed(MASTER_OUTPUT_NAME, master)
+    write_processed(MASTER_OUTPUT_NAME, master, site_key=site_key)
 
     metadata = {
+        "site_key": site_key,
         "rows": len(master),
         "low_irradiation_cutoff": cutoff,
         "filter_counts": filter_counts,

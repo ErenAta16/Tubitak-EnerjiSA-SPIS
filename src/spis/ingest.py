@@ -10,6 +10,7 @@ import pandas as pd
 
 from spis import config
 from spis.io import write_interim
+from spis.sites import DEFAULT_SITE, get_site, site_raw_paths
 
 LOGGER = logging.getLogger(__name__)
 
@@ -395,12 +396,19 @@ def load_washing(path: Path | None = None) -> pd.DataFrame:
     return transform_washing(text)
 
 
-def ingest_all() -> dict[str, pd.DataFrame]:
-    """Run all loaders and persist validated interim Parquet artifacts."""
-    irradiance = load_irradiance()
-    events, downtime_days = load_downtime()
-    inverter = load_inverter()
-    washing = load_washing()
+def ingest_all(site_key: str = DEFAULT_SITE) -> dict[str, pd.DataFrame]:
+    """Run all loaders and persist validated interim Parquet artifacts for a site."""
+    site = get_site(site_key)
+    if not site.operational_data_available:
+        raise ValueError(
+            f"Site {site_key!r} has operational_data_available=False; cannot ingest SCADA files"
+        )
+
+    paths = site_raw_paths(site_key)
+    irradiance = load_irradiance(paths["irradiance"])
+    events, downtime_days = load_downtime(paths["downtime"])
+    inverter = load_inverter(paths["inverter"])
+    washing = load_washing(paths["washing"])
 
     artifacts = {
         "irradiance_daily": irradiance,
@@ -410,5 +418,5 @@ def ingest_all() -> dict[str, pd.DataFrame]:
         "washing_events": washing,
     }
     for name, frame in artifacts.items():
-        write_interim(name, frame)
+        write_interim(name, frame, site_key=site_key)
     return artifacts

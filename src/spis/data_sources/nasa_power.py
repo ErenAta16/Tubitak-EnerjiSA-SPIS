@@ -10,6 +10,7 @@ import requests
 
 from spis import config
 from spis.data_sources._cache import read_cache, write_cache
+from spis.sites import DEFAULT_SITE, get_site, site_external_subdir
 
 LOGGER = logging.getLogger(__name__)
 
@@ -30,25 +31,43 @@ NASA_UNITS = {
     "ALLSKY_SFC_SW_DWN": "kWh/m2/day",
     "CLRSKY_SFC_SW_DWN": "kWh/m2/day",
 }
+PARQUET_NAME = "daily_point.parquet"
+SIDECAR_NAME = "daily_point.json"
 
 
-def fetch_nasa_power_daily(force_refresh: bool = False) -> tuple[pd.DataFrame, dict[str, Any]]:
-    """Fetch or load cached NASA POWER daily weather for the plant location."""
+def _cache_source(site_key: str) -> str:
+    return site_external_subdir("nasa_power", site_key)
+
+
+def fetch_nasa_power_daily(
+    site_key: str = DEFAULT_SITE,
+    force_refresh: bool = False,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Fetch or load cached NASA POWER daily weather for a site location."""
+    site = get_site(site_key)
+    cache_src = _cache_source(site_key)
+
     if not force_refresh:
-        try:
-            frame, metadata = read_cache("nasa_power", "daily_point.parquet", "daily_point.json")
-            if "clrsky_sfc_sw_dwn" not in frame.columns:
-                LOGGER.info("Cached NASA POWER missing CLRSKY; refreshing pull")
-            else:
+        for src in (cache_src, "nasa_power") if site_key == DEFAULT_SITE else (cache_src,):
+            try:
+                frame, metadata = read_cache(src, PARQUET_NAME, SIDECAR_NAME)
+                if "clrsky_sfc_sw_dwn" not in frame.columns:
+                    LOGGER.info("Cached NASA POWER missing CLRSKY; refreshing pull")
+                    break
+                metadata = {
+                    **metadata,
+                    "site_key": site_key,
+                    "provisional": site.coordinates_provisional,
+                }
                 return frame, metadata
-        except FileNotFoundError:
-            pass
+            except FileNotFoundError:
+                continue
 
     params = {
         "parameters": ",".join(NASA_PARAMETERS),
         "community": "RE",
-        "longitude": config.PLANT_LON,
-        "latitude": config.PLANT_LAT,
+        "longitude": site.lon,
+        "latitude": site.lat,
         "start": config.IRRADIANCE_START_DATE.replace("-", ""),
         "end": config.IRRADIANCE_END_DATE.replace("-", ""),
         "format": "JSON",
@@ -79,12 +98,15 @@ def fetch_nasa_power_daily(force_refresh: bool = False) -> tuple[pd.DataFrame, d
         "url": NASA_POWER_URL,
         "request_params": params,
         "units": NASA_UNITS,
+        "site_key": site_key,
+        "provisional": site.coordinates_provisional,
+        "coordinates_note": site.coordinates_note,
         "date_span": {
             "start": str(frame["date"].min().date()),
             "end": str(frame["date"].max().date()),
         },
     }
-    write_cache("nasa_power", "daily_point.parquet", "daily_point.json", frame, metadata)
+    write_cache(cache_src, PARQUET_NAME, SIDECAR_NAME, frame, metadata)
     return frame, metadata
 
 

@@ -156,3 +156,6 @@ config = SpisConfig(
     low_irradiation_cutoff=LOW_IRRADIATION_CUTOFF,
     random_state=RANDOM_STATE,
 )
+
+# Multi-site registry (path helpers in spis.sites).
+from spis.sites import SITES, SiteConfig, get_site  # noqa: E402, F401
