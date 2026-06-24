@@ -42,6 +42,25 @@ SOILING_RECOVERY_WINDOW_DAYS: int = 3
 SOILING_MIN_CLEAN_DAYS: int = 10
 SOILING_BOOTSTRAP_SAMPLES: int = 200
 
+# P4 washing optimization (ASSUMED until Enerjisa/EPIAS supply real values).
+PRODUCTION_UNITS: str = "kWh/day"
+PLANT_AC_CAPACITY_KW: float = INVERTER_AC_KVA * INVERTER_COUNT
+WASH_COST_TL_SWEEP: tuple[float, ...] = (50_000.0, 100_000.0, 150_000.0, 200_000.0, 300_000.0)
+WASH_COST_TL_CENTRAL: float = 150_000.0
+WASH_COST_BASIS: str = (
+    "ASSUMED plausible range for full-plant brush/robot wash (TBD from Enerjisa); "
+    "50k-300k TL spans ~18-109 TL/kW_AC for 2750 kW."
+)
+PTF_TL_MWH_SWEEP: tuple[float, ...] = (1000.0, 1500.0, 2000.0, 2500.0, 3000.0, 3500.0)
+PTF_TL_MWH_CENTRAL: float = 2000.0
+PTF_BASIS: str = (
+    "ASSUMED Turkish day-ahead PTF range when EPTR credentials absent; "
+    "replace with eptr2 monthly averages when EPTR_USERNAME/PASSWORD set."
+)
+OPTIMIZE_GRID_MAX_DAYS: int = 365
+OPTIMIZE_GRID_STEP_DAYS: int = 1
+OPTIMIZE_CLOSED_FORM_TOLERANCE_DAYS: float = 1.0
+
 IRRADIANCE_START_DATE: str = "2023-01-01"
 IRRADIANCE_END_DATE: str = "2025-10-22"
 INVERTER_COMMISSIONING_END_DATE: str = "2025-01-22"
