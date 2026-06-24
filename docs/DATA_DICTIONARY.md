@@ -214,6 +214,27 @@ Figures: `optimize_cost_vs_interval`, `optimize_t_star_heatmap`,
 `optimize_actual_vs_optimal` under `reports/figures/`. Report:
 `reports/WASHING_SCHEDULE.md`.
 
+## P5 machine learning (`data/processed/ml_model_metrics.parquet`)
+
+Random Forest corroboration layer on exogenous features only (production and
+irradiation excluded to prevent PI leakage). Target: `pi_temp_corrected` on clean
+post-first-wash days. Modelling frame: 376 rows (181 dropped for null clearness/features).
+
+Time split at 2024-11-01: train=301, test=75 (latest 20% held out).
+
+| model | MAE | RMSE | R2 |
+|---|---:|---:|---:|
+| Random Forest | 0.285 | 0.375 | -0.784 |
+| days_since_wash baseline | 0.339 | 0.416 | -1.195 |
+
+Top permutation importances (test): nasa_t2m, month_cos, dust_accumulated,
+days_since_wash. Pollution verdict: dust_accumulated ranks #3 with positive importance
+(possible nonlinear signal; not proven causation). Negative held-out R2 reflects a
+difficult test window; RF still modestly beats the linear trend baseline.
+
+Persisted artifacts: `ml_model.joblib`, `ml_feature_list.json`. Report:
+`reports/ML_RESULTS.md`.
+
 ## External sources (vetted; reference list)
 
 Notes:
