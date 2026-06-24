@@ -14,13 +14,21 @@ from spis.data_sources._cache import read_cache, write_cache
 LOGGER = logging.getLogger(__name__)
 
 NASA_POWER_URL = "https://power.larc.nasa.gov/api/temporal/daily/point"
-NASA_PARAMETERS = ("T2M", "T2M_MAX", "WS2M", "PRECTOTCORR", "ALLSKY_SFC_SW_DWN")
+NASA_PARAMETERS = (
+    "T2M",
+    "T2M_MAX",
+    "WS2M",
+    "PRECTOTCORR",
+    "ALLSKY_SFC_SW_DWN",
+    "CLRSKY_SFC_SW_DWN",
+)
 NASA_UNITS = {
     "T2M": "degC",
     "T2M_MAX": "degC",
     "WS2M": "m/s",
     "PRECTOTCORR": "mm/day",
     "ALLSKY_SFC_SW_DWN": "kWh/m2/day",
+    "CLRSKY_SFC_SW_DWN": "kWh/m2/day",
 }
 
 
@@ -28,7 +36,11 @@ def fetch_nasa_power_daily(force_refresh: bool = False) -> tuple[pd.DataFrame, d
     """Fetch or load cached NASA POWER daily weather for the plant location."""
     if not force_refresh:
         try:
-            return read_cache("nasa_power", "daily_point.parquet", "daily_point.json")
+            frame, metadata = read_cache("nasa_power", "daily_point.parquet", "daily_point.json")
+            if "clrsky_sfc_sw_dwn" not in frame.columns:
+                LOGGER.info("Cached NASA POWER missing CLRSKY; refreshing pull")
+            else:
+                return frame, metadata
         except FileNotFoundError:
             pass
 
