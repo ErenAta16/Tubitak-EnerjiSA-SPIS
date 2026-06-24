@@ -95,6 +95,52 @@ low irradiation 52, rain 205; 750 days pass all filters.
 Figure: `reports/figures/pi_temp_correction_comparison.png` (+ CSV) compares 14-day
 rolling means of raw vs temperature-corrected PI.
 
+## P3 soiling segments (`data/processed/soiling_segments.parquet`)
+
+Seven post-wash segments (segment 0 excluded). Primary fit signal:
+`pi_temp_corrected` on rain-free `is_clean_observation` days. Baseline = median of
+first 3 clean days after wash (`SOILING_BASELINE_CLEAN_DAYS`). Robust slope =
+`scipy.stats.theilslopes` of soiling_ratio (%) vs `days_since_wash`.
+
+| seg | season | method | n_clean | n_fit | rate %/day | CI | R2 | recovery % | flags |
+|---|---|---|---:|---:|---:|---|---:|---:|---|
+| 1 | autumn | brush | 47 | 40 | -0.297 | [-0.34,-0.25] | 0.79 | -1.2 | recovery<0 |
+| 2 | winter | brush | 69 | 62 | +0.130 | [0.09,0.18] | 0.19 | -12.6 | positive slope |
+| 3 | spring | brush | 41 | 29 | -0.001 | [-0.08,0.07] | -0.02 | +10.8 | |
+| 4 | summer | brush | 55 | 47 | -0.022 | [-0.08,0.04] | -0.05 | +12.3 | |
+| 5 | autumn | robot | 101 | 93 | -0.223 | [-0.25,-0.20] | 0.47 | +9.6 | n=1 robot (descriptive) |
+| 6 | winter | brush | 73 | 70 | -0.081 | [-0.11,-0.05] | 0.38 | -2.4 | recovery<0 |
+| 7 | summer | brush | 171 | 162 | -0.088 | [-0.11,-0.07] | 0.23 | +46.5 | open segment |
+
+### Seasonal summary (segment means)
+
+| season | mean rate %/day | n segments |
+|---|---:|---:|
+| autumn | -0.260 | 2 |
+| winter | +0.025 | 2 |
+| spring | -0.001 | 1 |
+| summer | -0.055 | 2 |
+
+### P4 recommended rate
+
+| metric | value %/day |
+|---|---:|
+| Pooled (variance-weighted) | -0.090 |
+| Pooled approx 95% CI | [-0.177, -0.004] |
+| Summer mean (recommended for P4) | -0.055 |
+| Winter mean | +0.025 |
+
+Rationale: summer rate used for scheduling because peak soiling loss accumulates in
+dry months; pooled rate is cross-season fallback. See `reports/SOILING_INTERPRETATION.md`.
+
+### Pollution association (n=7 segments, not causal)
+
+| pollutant | r | p | bootstrap 95% CI |
+|---|---:|---:|---|
+| accumulated pm10 | -0.16 | 0.73 | [-0.97, 0.33] |
+| accumulated dust | -0.04 | 0.93 | [-0.89, 0.88] |
+| accumulated AOD | -0.05 | 0.91 | [-0.90, 0.78] |
+
 ## External sources (vetted; reference list)
 
 Notes:
