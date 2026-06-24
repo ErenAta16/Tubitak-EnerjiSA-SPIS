@@ -49,7 +49,9 @@ def stage_soiling() -> None:
 
 def stage_optimize() -> None:
     """Optimize washing schedule against cost and yield."""
-    _not_implemented("optimize")
+    from spis.optimize import run_optimization_analysis
+
+    run_optimization_analysis()
 
 
 def stage_ml() -> None:
