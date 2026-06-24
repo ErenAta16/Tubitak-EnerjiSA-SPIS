@@ -29,8 +29,12 @@ FEEDERS: tuple[str, ...] = ("EFLATUN", "HIPOKRAT")
 PLANT_LAT: float = 39.86857
 PLANT_LON: float = 26.24152
 
-# Placeholder threshold for low-irradiance day exclusion; value TBD in P2.
+# Derived at clean time from LOW_IRRADIATION_PERCENTILE; snapshot ~1125 Wh/m2/day (P2).
 LOW_IRRADIATION_CUTOFF: float | None = None
+LOW_IRRADIATION_PERCENTILE: float = 0.05
+RAIN_DAY_PRECIP_MM: float = 1.0
+NOCT_PEAK_SUN_HOURS: float = 6.0
+SCADA_IRRADIATION_UNITS: str = "Wh/m2/day"
 RANDOM_STATE: int = 42
 
 IRRADIANCE_START_DATE: str = "2023-01-01"
