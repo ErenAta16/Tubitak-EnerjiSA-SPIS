@@ -33,7 +33,7 @@ noise); values are retained, not imputed.
 
 | source | variables | auth | url | units | coverage |
 |---|---|---|---|---|---|
-| NASA POWER daily point | T2M, T2M_MAX, WS2M, PRECTOTCORR, ALLSKY_SFC_SW_DWN | none | https://power.larc.nasa.gov/api/temporal/daily/point | degC, degC, m/s, mm/day, kWh/m2/day | 2023-01-01..2025-10-22 (1026 days) |
+| NASA POWER daily point | T2M, T2M_MAX, WS2M, PRECTOTCORR, ALLSKY_SFC_SW_DWN, CLRSKY_SFC_SW_DWN | none | https://power.larc.nasa.gov/api/temporal/daily/point | degC, degC, m/s, mm/day, kWh/m2/day, kWh/m2/day | 2023-01-01..2025-10-22 (1026 days) |
 | Open-Meteo Air Quality (CAMS) | pm10, pm2_5, dust, aerosol_optical_depth | none | https://air-quality-api.open-meteo.com/v1/air-quality | ug/m3, ug/m3, ug/m3, dimensionless | 2023-01-01..2025-10-22 (1026 days; hourly mean aggregated to daily) |
 
 Cached under `data/external/nasa_power/` and `data/external/open_meteo_aq/` with JSON sidecars recording request params and pull timestamp.
@@ -140,6 +140,67 @@ dry months; pooled rate is cross-season fallback. See `reports/SOILING_INTERPRET
 | accumulated pm10 | -0.16 | 0.73 | [-0.97, 0.33] |
 | accumulated dust | -0.04 | 0.93 | [-0.89, 0.88] |
 | accumulated AOD | -0.05 | 0.91 | [-0.90, 0.78] |
+
+## P3.5 soiling robustness (`data/processed/soiling_robustness.parquet`)
+
+Reads `master_daily.parquet` and `soiling_segments.parquet` only (no P1-P3 re-run).
+At analysis time joins NASA `CLRSKY_SFC_SW_DWN` from cache and computes
+`clearness_index = nasa_allsky_kwh_m2 / nasa_clrsky_kwh_m2`. High-clearness filter
+k >= 0.7 (tercile cutoff ~0.977 logged). Re-fits per-segment Theil-Sen slopes on
+rain-free clean days within that subset.
+
+### Clear-sky vs original slopes
+
+| seg | original %/day | clear %/day | orig R2 | clear R2 | clear n | CI tightened |
+|---:|---:|---:|---:|---:|---:|---|
+| 1 | -0.281 | -0.293 | 0.79 | 0.79 | 39 | yes |
+| 2 | +0.130 | +0.114 | 0.20 | 0.14 | 44 | yes |
+| 3 | -0.039 | +0.007 | -0.06 | -0.08 | 21 | yes |
+| 4 | -0.032 | -0.022 | -0.04 | -0.05 | 47 | yes |
+| 5 | -0.218 | -0.224 | 0.47 | 0.46 | 92 | yes |
+| 6 | -0.084 | -0.147 | 0.33 | -0.68 | 20 | no |
+| 7 | -0.083 | -0.179 | 0.21 | 0.17 | 35 | no |
+
+Clear-sky filtering sharpened autumn/robot segments modestly; segment 7 rate doubled
+in magnitude but CI widened (fewer high-k days).
+
+### Daily pollution test (HAC, Newey-West maxlags=7)
+
+Trend-removed PI residuals on clean days regressed on accumulated CAMS pollutant since
+last wash. Regression n = 557 after dropna (750 clean input days).
+
+| pollutant | coef | HAC 95% CI | partial R2 | p |
+|---|---:|---|---:|---:|
+| pm10 | +1.2e-05 | [-5.8e-05, 8.3e-05] | 0.0006 | 0.73 |
+| dust | +5.5e-05 | [-1.9e-04, 3.0e-04] | 0.0009 | 0.66 |
+| AOD | +7.4e-04 | [-4.2e-03, 5.7e-03] | 0.0004 | 0.77 |
+
+Verdict: **not supported at daily resolution (n~750)**. HAC SE wider than naive OLS
+on all pollutants (verifier checked).
+
+### Rain natural washing
+
+96 rain events (PRECTOTCORR >= 1 mm/day, consecutive-day grouping); 95 quantified.
+Mean PI recovery (after minus before rain window): **-0.0067** (95% CI -0.051 .. +0.039).
+Share of positive cleaning uplift: rain **74%** vs scheduled washing **26%** (sums
+positive recoveries only; mean recovery near zero).
+
+### P4 rate update (post P3.5)
+
+| metric | value %/day |
+|---|---:|
+| Clear-sky pooled (n_fit-weighted, recommended) | -0.125 |
+| Uncertainty half-width | 0.061 |
+| Robust enough for scheduling | yes (CI width < 0.25, median slope negative) |
+
+See `reports/SOILING_ROBUSTNESS.md` and figures `robustness_*` under
+`reports/figures/`.
+
+### Irradiance-sensor caveat
+
+SCADA `irradiation` (ISINIM) is likely in-plane reference irradiation. Co-soiling of
+the reference sensor partially cancels module soiling in PI; observed rates are a
+lower bound on physical soiling. No sensor datasheet in repo; not corrected.
 
 ## External sources (vetted; reference list)
 
