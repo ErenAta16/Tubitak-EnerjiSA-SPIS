@@ -42,7 +42,9 @@ def stage_clean() -> None:
 
 def stage_soiling() -> None:
     """Fit soiling rates between washing events."""
-    _not_implemented("soiling")
+    from spis.soiling import run_soiling_analysis
+
+    run_soiling_analysis()
 
 
 def stage_optimize() -> None:
