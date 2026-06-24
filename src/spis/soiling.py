@@ -99,10 +99,14 @@ def fit_segment_slope(
     baseline_temp: float,
     baseline_raw: float,
     segment_id: int,
+    *,
+    day_mask: pd.Series | None = None,
 ) -> SegmentFit:
     """Fit Theil-Sen slope of soiling ratio vs days_since_wash on rain-free clean days."""
     fit_frame = rain_free_clean(clean)
     fit_frame = fit_frame.loc[fit_frame["days_since_wash"] > 0].copy()
+    if day_mask is not None:
+        fit_frame = fit_frame.loc[day_mask.loc[fit_frame.index]].copy()
     fit_frame["soiling_ratio"] = 100.0 * fit_frame["pi_temp_corrected"] / baseline_temp
     fit_frame["soiling_ratio_raw"] = 100.0 * fit_frame["pi"] / baseline_raw
 
