@@ -63,7 +63,9 @@ def stage_ml() -> None:
 
 def stage_report() -> None:
     """Render figures and the written report."""
-    _not_implemented("report")
+    from spis.reporting import run_reporting
+
+    run_reporting()
 
 
 STAGE_HANDLERS: dict[str, Callable[[], None]] = {
