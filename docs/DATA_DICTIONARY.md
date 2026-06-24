@@ -15,6 +15,20 @@ external-source provenance during P2.
 ## Derived
 - pi = GUNLUK TOTAL URETIM / ISINIM (daily irradiance-normalized yield)
 
+## P1 interim frames (loaded 2026-06-24)
+
+| artifact | rows | date span | null counts |
+|---|---|---|---|
+| irradiance_daily | 1026 | 2023-01-01..2025-10-22 | eflatun_production=693, hipokrat_production=693 |
+| downtime_events | 88 | 2023-02-20..2025-10-22 | curtailment_mw=84 |
+| downtime_days | 92 | 2023-02-20..2025-10-22 | curtailment_mw=88 |
+| inverter_daily_long | 3025 | 2025-01-23..2025-10-23 | active_power=857, meteo_irradiance=55 |
+| washing_events | 7 | 2023-09-18..2025-03-21 | none |
+
+Each frame is written to `data/interim/<name>.parquet` by `spis.ingest.ingest_all()`.
+Inverter loader logs 935 long-form rows with negative meteo_irradiance (night sensor
+noise); values are retained, not imputed.
+
 ## External sources (vetted; pull in P2)
 All cover the project window 2023-01-01..2025-10-22 and the plant point
 lat 39.86857, lon 26.24152.
