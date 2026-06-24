@@ -8,7 +8,6 @@ optimal intervals may therefore be shorter than model output.
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -17,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from spis import config
+from spis.data_sources.epias_ptf import ingest_epias_ptf, load_ptf_central_price
 from spis.io import read_interim, read_processed, write_processed
 from spis.soiling import MASTER_INPUT_NAME, SOILING_OUTPUT_NAME
 
@@ -230,31 +230,24 @@ def actual_inter_wash_intervals(washing_events: pd.DataFrame) -> pd.DataFrame:
 
 
 def try_fetch_ptf_monthly() -> pd.DataFrame | None:
-    """Pull monthly PTF via eptr2 when credentials exist; else None."""
-    username = os.environ.get("EPTR_USERNAME")
-    password = os.environ.get("EPTR_PASSWORD")
-    if not username or not password:
-        LOGGER.info("EPTR credentials absent; using ASSUMED PTF sweep only")
-        return None
+    """Load cached monthly PTF table from EPIAS CSV ingest."""
     try:
-        import eptr2  # type: ignore[import-not-found]
-    except ImportError:
-        LOGGER.warning("eptr2 not installed; using ASSUMED PTF sweep only")
+        ingest_epias_ptf(force_refresh=False)
+        from spis.data_sources._cache import read_cache
+        from spis.data_sources.epias_ptf import MONTHLY_PARQUET, MONTHLY_SIDECAR, SOURCE_NAME
+
+        monthly, _ = read_cache(SOURCE_NAME, MONTHLY_PARQUET, MONTHLY_SIDECAR)
+        out = monthly.copy()
+        out["record_type"] = "ptf_monthly"
+        out["source"] = "real_2023"
+        return out
+    except FileNotFoundError:
+        LOGGER.warning("No cached EPIAS PTF; monthly table unavailable")
         return None
-    LOGGER.info("Fetching PTF via eptr2 (credentials present)")
-    client = eptr2.Eptr("tr", username, password)
-    frame = client.call("mcp", {"startdate": "20230101", "enddate": "20251022"})
-    if frame is None or frame.empty:
-        LOGGER.warning("eptr2 returned empty PTF; falling back to ASSUMED sweep")
-        return None
-    out = frame.copy()
-    out["record_type"] = "ptf_monthly"
-    out["source"] = "eptr2"
-    return out
 
 
-def build_assumption_rows() -> pd.DataFrame:
-    """Log every assumed economic input for reproducibility."""
+def build_assumption_rows(central_price: float, central_source: str) -> pd.DataFrame:
+    """Log every economic input with real vs assumed provenance."""
     rows = [
         {
             "record_type": "assumption",
@@ -275,14 +268,21 @@ def build_assumption_rows() -> pd.DataFrame:
             "parameter": "ptf_tl_mwh_sweep",
             "value": str(config.PTF_TL_MWH_SWEEP),
             "source": "ASSUMED",
-            "basis": config.PTF_BASIS,
+            "basis": config.PTF_SWEEP_BASIS,
         },
         {
             "record_type": "assumption",
-            "parameter": "ptf_tl_mwh_central",
-            "value": str(config.PTF_TL_MWH_CENTRAL),
+            "parameter": "ptf_tl_mwh_central_legacy_assumed",
+            "value": str(config.PTF_TL_MWH_CENTRAL_ASSUMED_LEGACY),
             "source": "ASSUMED",
-            "basis": config.PTF_BASIS,
+            "basis": "Previous P4 central price before real 2023 PTF ingest",
+        },
+        {
+            "record_type": "real_2023",
+            "parameter": "ptf_tl_mwh_central",
+            "value": str(central_price),
+            "source": central_source,
+            "basis": config.PTF_REAL_BASIS,
         },
         {
             "record_type": "assumption",
@@ -333,6 +333,7 @@ def build_sensitivity_sweep(
                         "record_type": "sweep_point",
                         "wash_cost_tl": wash_cost,
                         "price_tl_mwh": price,
+                        "price_source": "assumption",
                         "rate_scenario": scenario,
                         "rate_fraction_per_day": r,
                         "daily_energy_kwh": daily_energy_kwh,
@@ -345,29 +346,35 @@ def build_sensitivity_sweep(
 
 
 def build_central_estimate(
-    sweep: pd.DataFrame,
     rate_band: SoilingRateBand,
     daily_energy_kwh: float,
+    central_price: float,
+    central_source: str,
 ) -> pd.DataFrame:
-    """Point estimate at central assumptions with CI band from rate scenarios."""
-    central = sweep.loc[
-        (sweep["wash_cost_tl"] == config.WASH_COST_TL_CENTRAL)
-        & (sweep["price_tl_mwh"] == config.PTF_TL_MWH_CENTRAL)
-    ].copy()
-    point_row = central.loc[central["rate_scenario"] == "point"].iloc[0]
-    low_row = central.loc[central["rate_scenario"] == "low"].iloc[0]
-    high_row = central.loc[central["rate_scenario"] == "high"].iloc[0]
-    t_low = float(low_row["t_star_closed_form_days"])
-    t_point = float(point_row["t_star_closed_form_days"])
-    t_high = float(high_row["t_star_closed_form_days"])
-    if t_low > t_high:
-        t_low, t_high = t_high, t_low
+    """Point estimate at central wash cost and real/central PTF with rate CI band."""
+    wash = config.WASH_COST_TL_CENTRAL
+    scenarios = {
+        "low": rate_for_scenario(rate_band, "low"),
+        "point": rate_for_scenario(rate_band, "point"),
+        "high": rate_for_scenario(rate_band, "high"),
+    }
+    t_vals = {
+        name: optimal_interval_closed_form(wash, daily_energy_kwh, central_price, r)
+        for name, r in scenarios.items()
+    }
+    t_low = float(min(t_vals["low"], t_vals["high"]))
+    t_high = float(max(t_vals["low"], t_vals["high"]))
+    t_point = float(t_vals["point"])
+    t_grid, _ = optimal_interval_grid_search(
+        wash, daily_energy_kwh, central_price, scenarios["point"]
+    )
     return pd.DataFrame(
         [
             {
                 "record_type": "central_estimate",
-                "wash_cost_tl": config.WASH_COST_TL_CENTRAL,
-                "price_tl_mwh": config.PTF_TL_MWH_CENTRAL,
+                "wash_cost_tl": wash,
+                "price_tl_mwh": central_price,
+                "price_source": central_source,
                 "daily_energy_kwh": daily_energy_kwh,
                 "rate_fraction_point": rate_band.point,
                 "rate_fraction_low": rate_band.low,
@@ -375,7 +382,33 @@ def build_central_estimate(
                 "t_star_days": t_point,
                 "t_star_ci_low_days": t_low,
                 "t_star_ci_high_days": t_high,
-                "t_star_grid_days": float(point_row["t_star_grid_days"]),
+                "t_star_grid_days": t_grid,
+            }
+        ]
+    )
+
+
+def build_price_comparison(
+    rate_band: SoilingRateBand,
+    daily_energy_kwh: float,
+    real_price: float,
+    legacy_price: float,
+) -> pd.DataFrame:
+    """Compare T* at real 2023 PTF vs previous assumed central price."""
+    wash = config.WASH_COST_TL_CENTRAL
+    r = rate_band.point
+    t_real = optimal_interval_closed_form(wash, daily_energy_kwh, real_price, r)
+    t_legacy = optimal_interval_closed_form(wash, daily_energy_kwh, legacy_price, r)
+    return pd.DataFrame(
+        [
+            {
+                "record_type": "price_comparison",
+                "wash_cost_tl": wash,
+                "real_price_tl_mwh": real_price,
+                "legacy_assumed_price_tl_mwh": legacy_price,
+                "t_star_real_days": t_real,
+                "t_star_legacy_assumed_days": t_legacy,
+                "delta_real_minus_legacy_days": t_real - t_legacy,
             }
         ]
     )
@@ -444,6 +477,7 @@ def plot_cost_curve(
     curve: pd.DataFrame,
     central: pd.DataFrame,
     rate_band: SoilingRateBand,
+    central_price: float,
 ) -> None:
     """Total cost vs interval at central assumptions with rate-CI band curves."""
     config.FIGURES.mkdir(parents=True, exist_ok=True)
@@ -462,7 +496,7 @@ def plot_cost_curve(
         _, band_curve = optimal_interval_grid_search(
             config.WASH_COST_TL_CENTRAL,
             float(central.iloc[0]["daily_energy_kwh"]),
-            config.PTF_TL_MWH_CENTRAL,
+            central_price,
             r,
         )
         ax.plot(
@@ -476,7 +510,9 @@ def plot_cost_curve(
     ax.axvline(t_star, color="C0", linestyle="--", label=f"T*={t_star:.0f} d")
     ax.set_xlabel("Wash interval (days)")
     ax.set_ylabel("Total cost (TL/day)")
-    ax.set_title("P4 total cost vs wash interval (central assumptions)")
+    ax.set_title(
+        f"P4 total cost vs wash interval (real 2023 PTF {central_price:.0f} TL/MWh central)"
+    )
     ax.legend(fontsize=8)
     fig.tight_layout()
     png = config.FIGURES / "optimize_cost_vs_interval.png"
@@ -501,7 +537,7 @@ def plot_t_star_heatmap(sweep: pd.DataFrame) -> None:
     ax.set_xticklabels([f"{int(c)}" for c in point.columns])
     ax.set_yticks(range(len(point.index)))
     ax.set_yticklabels([f"{int(c / 1000):d}k" for c in point.index])
-    ax.set_xlabel("PTF price (TL/MWh, ASSUMED sweep)")
+    ax.set_xlabel("PTF price (TL/MWh, ASSUMED sensitivity sweep)")
     ax.set_ylabel("Wash cost (TL, ASSUMED sweep)")
     ax.set_title("Optimal wash interval T* (days, point soiling rate)")
     fig.colorbar(im, ax=ax, label="T* (days)")
@@ -554,11 +590,15 @@ def write_washing_schedule_report(
     central: pd.DataFrame,
     benchmark_summary: pd.DataFrame,
     assumptions: pd.DataFrame,
+    price_comparison: pd.DataFrame,
+    central_price: float,
+    central_source: str,
 ) -> None:
     """Write reports/WASHING_SCHEDULE.md with honest framing."""
     pooled = baseline.loc[baseline["segment_id"] == -1].iloc[0]
     cent = central.iloc[0]
     bsum = benchmark_summary.iloc[0]
+    comp = price_comparison.iloc[0]
     path = config.REPORTS / "WASHING_SCHEDULE.md"
     lines = [
         "# P4 Washing Schedule Optimization",
@@ -581,13 +621,27 @@ def write_washing_schedule_report(
         "Observed r is a **lower bound** (irradiance-sensor co-soiling); true optimal",
         "intervals may be **shorter** than model output.",
         "",
-        "## Central recommendation (ASSUMED costs until Enerjisa supplies values)",
+        "## Central recommendation",
         "",
-        f"Wash cost: **{config.WASH_COST_TL_CENTRAL:,.0f} TL** ({config.WASH_COST_BASIS}).",
-        f"PTF price: **{config.PTF_TL_MWH_CENTRAL:,.0f} TL/MWh** ({config.PTF_BASIS}).",
+        f"Wash cost: **{config.WASH_COST_TL_CENTRAL:,.0f} TL** (ASSUMED; Enerjisa pending).",
+        f"PTF price: **{central_price:,.2f} TL/MWh** ({central_source}; 2023 annual mean).",
         "",
         f"Optimal interval T* = **{cent['t_star_days']:.0f} days** "
         f"(rate CI: {cent['t_star_ci_low_days']:.0f}..{cent['t_star_ci_high_days']:.0f} days).",
+        "",
+        "### vs previous assumed 2000 TL/MWh central price",
+        "",
+        f"Previous T* at assumed 2000 TL/MWh: **{comp['t_star_legacy_assumed_days']:.0f} days**.",
+        f"Real 2023 price T*: **{comp['t_star_real_days']:.0f} days** "
+        f"(delta {comp['delta_real_minus_legacy_days']:+.0f} days).",
+        "",
+        "## Price and wash-cost caveats",
+        "",
+        "(a) PTF is **2023-only, nominal TL, single-year**; 2024-2025 not supplied.",
+        "(b) Wash cost remains **ASSUMED**; if Enerjisa supplies a current-TL figure "
+        "without rebasing the 2023 PTF, the nominal 2023 price biases T* **longer** "
+        "(cautious verdict on over/under-washing).",
+        "Sensitivity sweep over ASSUMED PTF range 1000-3500 TL/MWh covers missing years.",
         "",
         "## Actual vs model cadence",
         "",
@@ -599,7 +653,7 @@ def write_washing_schedule_report(
         "",
         "- Modest soiling rates; pollution not a daily driver (P3.5).",
         "- Rain provides parallel natural cleaning (mean event recovery ~0).",
-        "- All wash costs and PTF prices in this run are ASSUMED sweeps.",
+        "- Wash cost ASSUMED; PTF central is real 2023 only.",
         "",
         "## What flips the recommendation",
         "",
@@ -638,10 +692,17 @@ def run_optimization_analysis() -> dict[str, Any]:
         baseline.loc[baseline["segment_id"] == -1, "clean_baseline_kwh_day"].iloc[0]
     )
     rate_band = load_soiling_rate_band(robustness)
-    assumptions = build_assumption_rows()
+    central_price, central_source = load_ptf_central_price()
+    assumptions = build_assumption_rows(central_price, central_source)
     ptf_monthly = try_fetch_ptf_monthly()
     sweep = build_sensitivity_sweep(pooled_kwh, rate_band)
-    central = build_central_estimate(sweep, rate_band, pooled_kwh)
+    central = build_central_estimate(rate_band, pooled_kwh, central_price, central_source)
+    price_comparison = build_price_comparison(
+        rate_band,
+        pooled_kwh,
+        central_price,
+        config.PTF_TL_MWH_CENTRAL_ASSUMED_LEGACY,
+    )
     actual = actual_inter_wash_intervals(washing)
     benchmark = benchmark_actual_vs_optimal(actual, sweep)
 
@@ -668,7 +729,17 @@ def run_optimization_analysis() -> dict[str, Any]:
             }
         ]
     )
-    parts = [assumptions, units_row, rate_row, baseline, sweep, central, actual, benchmark]
+    parts = [
+        assumptions,
+        price_comparison,
+        units_row,
+        rate_row,
+        baseline,
+        sweep,
+        central,
+        actual,
+        benchmark,
+    ]
     if ptf_monthly is not None:
         parts.append(ptf_monthly)
     output = pd.concat(parts, ignore_index=True, sort=False)
@@ -677,10 +748,10 @@ def run_optimization_analysis() -> dict[str, Any]:
     _, curve = optimal_interval_grid_search(
         config.WASH_COST_TL_CENTRAL,
         pooled_kwh,
-        config.PTF_TL_MWH_CENTRAL,
+        central_price,
         rate_band.point,
     )
-    plot_cost_curve(curve, central, rate_band)
+    plot_cost_curve(curve, central, rate_band, central_price)
     plot_t_star_heatmap(sweep)
     plot_actual_vs_optimal(actual, central)
     write_washing_schedule_report(
@@ -690,20 +761,26 @@ def run_optimization_analysis() -> dict[str, Any]:
         central,
         benchmark.loc[benchmark["record_type"] == "benchmark_summary"],
         assumptions,
+        price_comparison,
+        central_price,
+        central_source,
     )
 
     LOGGER.info(
-        "P4 central T*=%.1f days (CI %.1f..%.1f) at %.0f TL wash, %.0f TL/MWh",
+        "P4 central T*=%.1f days (CI %.1f..%.1f) at %.0f TL wash, %.2f TL/MWh (%s)",
         float(central.iloc[0]["t_star_days"]),
         float(central.iloc[0]["t_star_ci_low_days"]),
         float(central.iloc[0]["t_star_ci_high_days"]),
         config.WASH_COST_TL_CENTRAL,
-        config.PTF_TL_MWH_CENTRAL,
+        central_price,
+        central_source,
     )
     return {
         "units": units,
         "rate_band": rate_band,
         "central": central,
+        "central_price": central_price,
+        "price_comparison": price_comparison,
         "sweep": sweep,
         "actual": actual,
         "benchmark": benchmark,

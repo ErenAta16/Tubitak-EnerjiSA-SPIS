@@ -58,11 +58,17 @@ WASH_COST_BASIS: str = (
     "50k-300k TL spans ~18-109 TL/kW_AC for 2750 kW."
 )
 PTF_TL_MWH_SWEEP: tuple[float, ...] = (1000.0, 1500.0, 2000.0, 2500.0, 3000.0, 3500.0)
-PTF_TL_MWH_CENTRAL: float = 2000.0
-PTF_BASIS: str = (
-    "ASSUMED Turkish day-ahead PTF range when EPTR credentials absent; "
-    "replace with eptr2 monthly averages when EPTR_USERNAME/PASSWORD set."
+PTF_TL_MWH_CENTRAL_ASSUMED_LEGACY: float = 2000.0
+PTF_SWEEP_BASIS: str = (
+    "ASSUMED sensitivity range for 2024-2025 when only 2023 PTF CSV is available; "
+    "sweep grid points are not realized prices."
 )
+PTF_REAL_BASIS: str = (
+    "REAL 2023 annual-mean PTF from EPIAS CSV in data/external/epias_ptf/; "
+    "2023-only nominal TL; 2024-2025 not supplied. If wash cost is later given "
+    "in current TL without rebasing, the 2023 nominal price biases T* longer."
+)
+EPIAS_PTF_DIR: Path = DATA_EXTERNAL / "epias_ptf"
 OPTIMIZE_GRID_MAX_DAYS: int = 365
 OPTIMIZE_GRID_STEP_DAYS: int = 1
 OPTIMIZE_CLOSED_FORM_TOLERANCE_DAYS: float = 1.0

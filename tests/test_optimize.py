@@ -68,7 +68,7 @@ def test_ci_band_ordering_sane() -> None:
     band = _band()
     wash = config.WASH_COST_TL_CENTRAL
     energy = 11_000.0
-    price = config.PTF_TL_MWH_CENTRAL
+    price = 2189.30
     t_slow = optimal_interval_closed_form(
         wash, energy, price, rate_for_scenario(band, "low")
     )

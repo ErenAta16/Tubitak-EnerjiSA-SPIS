@@ -198,15 +198,15 @@ first 3 clean days after each wash).
 Linear L(t)=r*t with P3.5 clear-sky pooled r=**0.00125/day** (CI 0.00064..0.00185).
 Observed r is a lower bound (irradiance-sensor co-soiling); true T* may be shorter.
 
-### Central optimum (ASSUMED wash 150k TL, PTF 2000 TL/MWh)
+### Central optimum (real 2023 PTF annual mean 2189.30 TL/MWh; wash cost ASSUMED 150k TL)
 
 | metric | value |
 |---|---:|
-| T* (point rate) | 104 days |
-| T* rate CI | 85..145 days |
+| T* (point rate, real_2023 price) | 99 days |
+| T* rate CI | 81..139 days |
+| T* at previous assumed 2000 TL/MWh | 104 days |
 | Mean actual inter-wash gap | 79 days |
-| Verdict at central assumptions | over-washing (actual cadence shorter than T*) |
-| Near-optimal swept combos | 8 of 30 (wash 50-200k TL, PTF 1000-3500 TL/MWh) |
+| Verdict at central assumptions | over-washing (cautious: 2023 nominal price) |
 
 Closed-form T*=sqrt(2*C/(r*E*p)) verified against 1-day grid search (max delta 0.5 d).
 
