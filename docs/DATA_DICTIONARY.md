@@ -161,46 +161,58 @@ rain-free clean days within that subset.
 | 6 | -0.084 | -0.147 | 0.33 | -0.68 | 20 | no |
 | 7 | -0.083 | -0.179 | 0.21 | 0.17 | 35 | no |
 
-Clear-sky filtering sharpened autumn/robot segments modestly; segment 7 rate doubled
-in magnitude but CI widened (fewer high-k days).
-
 ### Daily pollution test (HAC, Newey-West maxlags=7)
 
-Trend-removed PI residuals on clean days regressed on accumulated CAMS pollutant since
-last wash. Regression n = 557 after dropna (750 clean input days).
-
-| pollutant | coef | HAC 95% CI | partial R2 | p |
-|---|---:|---|---:|---:|
-| pm10 | +1.2e-05 | [-5.8e-05, 8.3e-05] | 0.0006 | 0.73 |
-| dust | +5.5e-05 | [-1.9e-04, 3.0e-04] | 0.0009 | 0.66 |
-| AOD | +7.4e-04 | [-4.2e-03, 5.7e-03] | 0.0004 | 0.77 |
-
-Verdict: **not supported at daily resolution (n~750)**. HAC SE wider than naive OLS
-on all pollutants (verifier checked).
-
-### Rain natural washing
-
-96 rain events (PRECTOTCORR >= 1 mm/day, consecutive-day grouping); 95 quantified.
-Mean PI recovery (after minus before rain window): **-0.0067** (95% CI -0.051 .. +0.039).
-Share of positive cleaning uplift: rain **74%** vs scheduled washing **26%** (sums
-positive recoveries only; mean recovery near zero).
+Regression n = 557 after dropna (750 clean input days). Verdict: **not supported at
+daily resolution (n~750)**.
 
 ### P4 rate update (post P3.5)
 
-| metric | value %/day |
-|---|---:|
-| Clear-sky pooled (n_fit-weighted, recommended) | -0.125 |
-| Uncertainty half-width | 0.061 |
-| Robust enough for scheduling | yes (CI width < 0.25, median slope negative) |
-
-See `reports/SOILING_ROBUSTNESS.md` and figures `robustness_*` under
-`reports/figures/`.
+Clear-sky pooled rate **-0.125 %/day** (uncertainty half-width 0.061). See
+`reports/SOILING_ROBUSTNESS.md`.
 
 ### Irradiance-sensor caveat
 
 SCADA `irradiation` (ISINIM) is likely in-plane reference irradiation. Co-soiling of
 the reference sensor partially cancels module soiling in PI; observed rates are a
 lower bound on physical soiling. No sensor datasheet in repo; not corrected.
+
+## P4 washing optimization (`data/processed/washing_optimization.parquet`)
+
+Reads `master_daily`, `soiling_segments`, `soiling_robustness`, and `washing_events`.
+Economic inputs are **ASSUMED sweeps** until Enerjisa wash costs and EPIAS PTF are
+supplied; every assumed value is logged (`record_type=assumption`).
+
+### Production units
+
+SCADA `production` (GUNLUK TOTAL URETIM) is **kWh/day**. Peak-day
+production/irradiation implied ~2748 kW, matching 11 x SG250HX (2750 kW AC).
+
+### Clean-baseline energy
+
+Pooled post-wash clean-baseline: **11,131 kWh/day** (median of segment baselines from
+first 3 clean days after each wash).
+
+### Soiling-loss model
+
+Linear L(t)=r*t with P3.5 clear-sky pooled r=**0.00125/day** (CI 0.00064..0.00185).
+Observed r is a lower bound (irradiance-sensor co-soiling); true T* may be shorter.
+
+### Central optimum (ASSUMED wash 150k TL, PTF 2000 TL/MWh)
+
+| metric | value |
+|---|---:|
+| T* (point rate) | 104 days |
+| T* rate CI | 85..145 days |
+| Mean actual inter-wash gap | 79 days |
+| Verdict at central assumptions | over-washing (actual cadence shorter than T*) |
+| Near-optimal swept combos | 8 of 30 (wash 50-200k TL, PTF 1000-3500 TL/MWh) |
+
+Closed-form T*=sqrt(2*C/(r*E*p)) verified against 1-day grid search (max delta 0.5 d).
+
+Figures: `optimize_cost_vs_interval`, `optimize_t_star_heatmap`,
+`optimize_actual_vs_optimal` under `reports/figures/`. Report:
+`reports/WASHING_SCHEDULE.md`.
 
 ## External sources (vetted; reference list)
 
