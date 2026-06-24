@@ -141,6 +141,43 @@ dry months; pooled rate is cross-season fallback. See `reports/SOILING_INTERPRET
 | accumulated dust | -0.04 | 0.93 | [-0.89, 0.88] |
 | accumulated AOD | -0.05 | 0.91 | [-0.90, 0.78] |
 
+## P4 washing optimization (`data/processed/washing_optimization.parquet`)
+
+Reads `master_daily`, `soiling_segments`, `soiling_robustness`, and `washing_events`.
+Economic inputs are **ASSUMED sweeps** until Enerjisa wash costs and EPIAS PTF are
+supplied; every assumed value is logged (`record_type=assumption`).
+
+### Production units
+
+SCADA `production` (GUNLUK TOTAL URETIM) is **kWh/day**. Peak-day
+production/irradiation implied ~2748 kW, matching 11 x SG250HX (2750 kW AC).
+
+### Clean-baseline energy
+
+Pooled post-wash clean-baseline: **11,131 kWh/day** (median of segment baselines from
+first 3 clean days after each wash).
+
+### Soiling-loss model
+
+Linear L(t)=r*t with P3.5 clear-sky pooled r=**0.00125/day** (CI 0.00064..0.00185).
+Observed r is a lower bound (irradiance-sensor co-soiling); true T* may be shorter.
+
+### Central optimum (ASSUMED wash 150k TL, PTF 2000 TL/MWh)
+
+| metric | value |
+|---|---:|
+| T* (point rate) | 104 days |
+| T* rate CI | 85..145 days |
+| Mean actual inter-wash gap | 79 days |
+| Verdict at central assumptions | over-washing (actual cadence shorter than T*) |
+| Near-optimal swept combos | 8 of 30 (wash 50-200k TL, PTF 1000-3500 TL/MWh) |
+
+Closed-form T*=sqrt(2*C/(r*E*p)) verified against 1-day grid search (max delta 0.5 d).
+
+Figures: `optimize_cost_vs_interval`, `optimize_t_star_heatmap`,
+`optimize_actual_vs_optimal` under `reports/figures/`. Report:
+`reports/WASHING_SCHEDULE.md`.
+
 ## External sources (vetted; reference list)
 
 Notes:
