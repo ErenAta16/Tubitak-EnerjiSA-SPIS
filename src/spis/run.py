@@ -56,7 +56,9 @@ def stage_optimize() -> None:
 
 def stage_ml() -> None:
     """Train and evaluate ML models for underperformance detection."""
-    _not_implemented("ml")
+    from spis.ml import run_ml_analysis
+
+    run_ml_analysis()
 
 
 def stage_report() -> None:
