@@ -67,6 +67,30 @@ OPTIMIZE_GRID_MAX_DAYS: int = 365
 OPTIMIZE_GRID_STEP_DAYS: int = 1
 OPTIMIZE_CLOSED_FORM_TOLERANCE_DAYS: float = 1.0
 
+# P5 machine-learning layer.
+ML_TEST_FRACTION: float = 0.2
+ML_CV_SPLITS: int = 5
+ML_PERMUTATION_REPEATS: int = 10
+ML_MODEL_FILENAME: str = "ml_model.joblib"
+ML_FEATURES_FILENAME: str = "ml_feature_list.json"
+ML_METRICS_OUTPUT_NAME: str = "ml_model_metrics"
+ML_RF_PARAM_GRID: dict[str, list] = {
+    "n_estimators": [100, 200],
+    "max_depth": [5, 10, None],
+    "min_samples_leaf": [1, 3, 5],
+}
+ML_LEAKAGE_FORBIDDEN: frozenset[str] = frozenset(
+    {
+        "production",
+        "irradiation",
+        "pi",
+        "pi_temp_corrected",
+        "eflatun_production",
+        "hipokrat_production",
+        "soiling_ratio",
+    }
+)
+
 IRRADIANCE_START_DATE: str = "2023-01-01"
 IRRADIANCE_END_DATE: str = "2025-10-22"
 INVERTER_COMMISSIONING_END_DATE: str = "2025-01-22"
