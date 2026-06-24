@@ -1,0 +1,5 @@
+inverter,median_relative,mean_relative,std_relative,n_days,fraction_below_threshold,rank,candidate_underperformer,analysis_note
+INV1,1.0081529467984627,1.4115779333557643,0.9853037565165319,6,0.3333333333333333,1,False,Descriptive peer comparison only; not fault diagnosis.
+INV3,0.9973116639614512,1.0484251531624404,0.07520868944402967,5,0.0,2,False,Descriptive peer comparison only; not fault diagnosis.
+INV4,0.9958537383311523,0.9956223803682814,0.0821167796036217,6,0.16666666666666666,3,False,Descriptive peer comparison only; not fault diagnosis.
+INV2,0.9411077153989363,0.8659221171162089,0.19037462954789436,6,0.5,4,True,Descriptive peer comparison only; not fault diagnosis.
