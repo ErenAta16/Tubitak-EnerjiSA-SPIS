@@ -1,0 +1,22 @@
+---
+description: Python engineering standards. Loads when editing Python sources.
+globs: ["src/**/*.py", "tests/**/*.py", "notebooks/**/*.py"]
+alwaysApply: false
+---
+
+# Python standards
+
+- Python 3.11+. Pin deps in `requirements.txt`. Use a venv.
+- Stack: pandas, numpy, scipy, scikit-learn, matplotlib, statsmodels, pyarrow.
+- Type hints on every public function. Google-style docstrings.
+- Format with `ruff format`; lint with `ruff check`. No unused imports.
+- Config (paths, constants, plant parameters) in `src/spis/config.py`, never hardcoded
+  inside analysis functions.
+- I/O contract: raw inputs are read-only from `data/raw/`. Write intermediate
+  artifacts to `data/interim/`, final tables to `data/processed/` as Parquet.
+- Plots: save to `reports/figures/` as 300 dpi PNG + a CSV of the plotted data
+  next to it, so every figure is reproducible from a table.
+- Logging via `logging`, not `print`. Each pipeline step logs row counts in/out.
+- Determinism: set `random_state=42` everywhere it is accepted.
+- Tests: every transformation in `src/spis/` has a `tests/` unit test with a tiny
+  synthetic frame asserting shape, dtypes and a known-value check.

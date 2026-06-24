@@ -1,0 +1,57 @@
+---
+description: Analysis methodology and domain definitions for soiling work.
+globs: ["src/spis/**", "notebooks/**", "reports/**"]
+alwaysApply: false
+---
+
+# Methodology (read before any analysis or modelling)
+
+## Core quantity
+Daily performance index is the irradiance-normalized yield:
+
+    PI = daily_total_production / daily_irradiation
+
+This proxies system efficiency. Soiling shows up as a downward drift of PI
+between two consecutive panel washes, and a step-up recovery right after a wash.
+
+## Temperature correction (preferred PR)
+Module power has temperature coefficient -0.35 %/degC referenced to 25 degC
+cell temperature (Jinko JKM525-545M datasheet). When ambient temperature is
+available (NASA POWER), estimate cell temp with the NOCT model
+(NOCT = 45 degC) and correct PI to 25 degC before fitting soiling slopes.
+Report both raw PI and temperature-corrected PI.
+
+## Mandatory confounder removal before fitting soiling
+Exclude or flag days that are not "clean efficiency" observations:
+- Days overlapping any downtime in the downtime log, especially
+  Kisitlama (curtailment), Plansiz/Planli Calisma, Ariza, Yillik Bakim.
+- Very low irradiance days (clouds) below a configurable threshold.
+- Rain days: rainfall is natural washing; model it as a separate recovery term,
+  do not confuse it with soiling drift.
+Log how many days each filter drops.
+
+## Washing segments
+The washing-dates file defines segments. Two washing methods appear
+(brush+solution vs robot no-solution). For each inter-wash segment fit a
+soiling-rate model (PI vs days-since-wash); compare rate and recovery across
+seasons and washing methods.
+
+## From soiling rate to schedule (the actual deliverable)
+Translate the fitted soiling rate into an economic optimum washing interval:
+cumulative soiling energy loss vs washing cost. Optimal interval minimizes
+total cost per MWh. Washing cost and electricity price are external inputs;
+if absent, request them and meanwhile run a sensitivity sweep over plausible
+ranges. State every assumption in the report.
+
+## Machine learning role
+Random Forest (and GridSearchCV) is the SECONDARY layer required by the
+proposal: predict daily PI or soiling rate from weather features
+(temp, wind, rainfall, dust/PM10, days-since-wash, season). Report MAE, RMSE, R2
+with a TIME-BASED train/test split (never random shuffle on a time series) and
+feature importances. The physical/statistical soiling model above is the primary,
+defensible result; ML supports it, it does not replace it.
+
+## Scope note
+Project proposal compares Canakkale (polluted) vs Balikesir (clean). Only
+Canakkale data exists today. Primary track is the within-Canakkale soiling study
+above. Keep a Balikesir comparison track ready to switch on if that data arrives.
