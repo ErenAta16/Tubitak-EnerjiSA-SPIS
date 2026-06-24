@@ -13,9 +13,16 @@ data/external/*
 .venv/
 __pycache__/
 *.pyc
+*.egg-info/
 .ipynb_checkpoints/
 .pytest_cache/
 .ruff_cache/
 
 # os
 .DS_Store
+
+# Stray proprietary source copies at repo root (canonical paths: data/raw/)
+/*.xlsx
+/*.kmz
+/*.txt
+!requirements.txt

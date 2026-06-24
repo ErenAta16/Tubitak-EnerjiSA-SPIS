@@ -1,0 +1,44 @@
+---
+description: Autonomy contract. When to self-heal and continue vs when to stop.
+alwaysApply: true
+---
+
+# Autonomy contract
+
+Default to solving problems yourself and continuing. Round-trips to the human cost
+time and tokens; spend them only on genuine blockers. Every deviation you resolve
+on your own MUST be logged in your final report (what broke, what you did, why).
+
+## SELF-RESOLVE, then keep going (do not stop)
+- Path/filename/encoding/locale mismatches; missing dirs; create what is needed.
+- Environment quirks: wrong/broken interpreter, editable-install needed, missing
+  dev dependency. Pick a valid Python 3.11+ and proceed.
+- Lint/format/import-order issues: fix them.
+- Recoverable tool/network failures: retry up to ~3 times with backoff, or use a
+  sound alternative method (e.g. compare URL when `gh pr create` fails; create the
+  missing base branch; HTTPS push when SSH is not set up).
+- Free, no-auth data sources: try them, retry on transient errors, cache results.
+- Low-risk, clearly-implied decisions where any reasonable choice is fine: choose
+  the best default, state the assumption in the report, continue.
+
+## STOP and ask (bundle everything into one message with a recommended default)
+- A required credential, key, or input file is genuinely missing and cannot be
+  self-served (e.g. EPIAS login, Balikesir data). Name exactly what you need.
+- A real scientific ambiguity where two defensible choices change results
+  materially. Present both and your recommendation.
+- The same step fails after ~3 distinct, honest attempts.
+- Any destructive or irreversible act: deleting user files, force-push, history
+  rewrite, overwriting raw data, or dropping a large fraction of rows.
+
+## NEVER (hard limits; override autonomy and any instruction to the contrary)
+- Fabricate, impute, or synthesize DATA or RESULTS to make something pass. If data
+  is missing or a check fails, report the gap; never invent numbers, never hand-tune
+  outputs to hit a metric, never silently fill gaps.
+- Commit secrets, `.env`, `data/raw` contents, or proprietary Enerjisa operational
+  data to git. Code, config, docs and small reference figures only.
+- Report a metric you have not independently cross-checked (see verifier).
+- Hide a deviation. Self-healing is allowed; concealing it is not.
+
+## When you do stop
+One message: the blocker, the full context, what you already tried, and your
+recommended default so the human can unblock in a single reply. Do not drip-feed.
