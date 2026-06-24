@@ -35,8 +35,10 @@ noise); values are retained, not imputed.
 |---|---|---|---|---|---|
 | NASA POWER daily point | T2M, T2M_MAX, WS2M, PRECTOTCORR, ALLSKY_SFC_SW_DWN, CLRSKY_SFC_SW_DWN | none | https://power.larc.nasa.gov/api/temporal/daily/point | degC, degC, m/s, mm/day, kWh/m2/day, kWh/m2/day | 2023-01-01..2025-10-22 (1026 days) |
 | Open-Meteo Air Quality (CAMS) | pm10, pm2_5, dust, aerosol_optical_depth | none | https://air-quality-api.open-meteo.com/v1/air-quality | ug/m3, ug/m3, ug/m3, dimensionless | 2023-01-01..2025-10-22 (1026 days; hourly mean aggregated to daily) |
+| EPIAS PTF CSV (user export) | hourly PTF TL/MWh | file | data/external/epias_ptf/Piyasa_Takas_Fiyati-*.csv | TL/MWh | 2023 only (8760 hours); 2024-2025 not supplied |
 
-Cached under `data/external/nasa_power/` and `data/external/open_meteo_aq/` with JSON sidecars recording request params and pull timestamp.
+Cached under `data/external/nasa_power/`, `data/external/open_meteo_aq/`, and
+`data/external/epias_ptf/` with JSON sidecars.
 
 ### SCADA vs NASA irradiance units
 
