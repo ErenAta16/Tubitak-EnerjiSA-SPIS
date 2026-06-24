@@ -35,7 +35,9 @@ def stage_ingest() -> None:
 
 def stage_clean() -> None:
     """Clean, align, and validate daily production and irradiance series."""
-    _not_implemented("clean")
+    from spis.clean import build_master_table
+
+    build_master_table()
 
 
 def stage_soiling() -> None:

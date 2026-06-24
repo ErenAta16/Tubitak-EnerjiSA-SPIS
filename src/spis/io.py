@@ -37,3 +37,22 @@ def read_interim(name: str) -> pd.DataFrame:
     frame = pd.read_parquet(path)
     LOGGER.info("Read %s rows from %s", len(frame), path)
     return frame
+
+
+def write_processed(name: str, frame: pd.DataFrame) -> Path:
+    """Write a validated frame to ``data/processed/{name}.parquet``."""
+    config.DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
+    path = config.DATA_PROCESSED / f"{name}.parquet"
+    frame.to_parquet(path, index=False)
+    LOGGER.info("Wrote %s rows to %s", len(frame), path)
+    return path
+
+
+def read_processed(name: str) -> pd.DataFrame:
+    """Read a processed Parquet artifact by basename."""
+    path = config.DATA_PROCESSED / f"{name}.parquet"
+    if not path.exists():
+        raise FileNotFoundError(f"Processed artifact not found: {path}")
+    frame = pd.read_parquet(path)
+    LOGGER.info("Read %s rows from %s", len(frame), path)
+    return frame
