@@ -22,7 +22,7 @@ CANAKKALE_MASTER_HASH = "bd1b07716649028b016f26d381216c6553c0ccc370ff2bd0cb88b61
 
 
 def test_sites_registry_has_required_fields() -> None:
-    assert set(SITES) == {"canakkale", "balikesir"}
+    assert set(SITES) == {"canakkale", "balikesir", "alice_springs"}
     can = get_site("canakkale")
     bal = get_site("balikesir")
     assert can.operational_data_available

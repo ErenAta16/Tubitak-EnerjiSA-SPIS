@@ -20,6 +20,7 @@ STAGES: tuple[str, ...] = (
     "site_comparison",
     "inverter_anomaly",
     "field_visit",
+    "external_validation",
 )
 
 ALL_STAGES: tuple[str, ...] = (
@@ -33,6 +34,7 @@ ALL_STAGES: tuple[str, ...] = (
     "site_comparison",
     "inverter_anomaly",
     "field_visit",
+    "external_validation",
 )
 
 STAGE_PHASES: dict[str, str] = {
@@ -46,6 +48,7 @@ STAGE_PHASES: dict[str, str] = {
     "site_comparison": "P9-B",
     "inverter_anomaly": "P6",
     "field_visit": "P8",
+    "external_validation": "P14",
 }
 
 
@@ -119,6 +122,13 @@ def stage_field_visit() -> None:
     run_field_visit_pack()
 
 
+def stage_external_validation() -> None:
+    """Run DKASC Alice Springs external validation against Canakkale."""
+    from spis.external_validation import run_external_validation
+
+    run_external_validation()
+
+
 STAGE_HANDLERS: dict[str, Callable[[], None]] = {
     "ingest": stage_ingest,
     "clean": stage_clean,
@@ -130,6 +140,7 @@ STAGE_HANDLERS: dict[str, Callable[[], None]] = {
     "site_comparison": stage_site_comparison,
     "inverter_anomaly": stage_inverter_anomaly,
     "field_visit": stage_field_visit,
+    "external_validation": stage_external_validation,
 }
 
 

@@ -247,6 +247,13 @@ def build_soiling_segments(master: pd.DataFrame, washing: pd.DataFrame) -> pd.Da
         seg_all = master.loc[master["segment_id"] == segment_id]
         clean = segment_clean_days(master, segment_id)
         n_clean = len(clean)
+        post_wash = clean.loc[clean["days_since_wash"] > 0]
+        if post_wash.empty:
+            LOGGER.warning(
+                "Segment %s: no post-wash clean days; skipping segment",
+                segment_id,
+            )
+            continue
         low_confidence = n_clean < config.SOILING_MIN_CLEAN_DAYS
         if low_confidence:
             LOGGER.warning(

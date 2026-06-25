@@ -48,6 +48,13 @@ RAIN_RECOVERY_WINDOW_DAYS: int = 3
 HAC_MAX_LAGS: int = 7
 BLOCK_BOOTSTRAP_SAMPLES: int = 200
 
+# P14 inferred cleaning at sites without wash logs (DKASC Alice Springs).
+INFERRED_CLEANING_RAIN_MM: float = 10.0
+INFERRED_CLEANING_PI_STEP_PCT: float = 5.0
+INFERRED_CLEANING_ROLLING_DAYS: int = 7
+INFERRED_CLEANING_MERGE_DAYS: int = 3
+INFERRED_CLEANING_MIN_DAYS_BETWEEN: int = 14
+
 # P4 washing optimization (ASSUMED until Enerjisa/EPIAS supply real values).
 PRODUCTION_UNITS: str = "kWh/day"
 PLANT_AC_CAPACITY_KW: float = INVERTER_AC_KVA * INVERTER_COUNT

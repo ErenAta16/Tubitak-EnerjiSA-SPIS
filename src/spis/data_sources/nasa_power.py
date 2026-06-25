@@ -8,7 +8,6 @@ from typing import Any
 import pandas as pd
 import requests
 
-from spis import config
 from spis.data_sources._cache import read_cache, write_cache
 from spis.sites import DEFAULT_SITE, get_site, site_external_subdir
 
@@ -68,8 +67,8 @@ def fetch_nasa_power_daily(
         "community": "RE",
         "longitude": site.lon,
         "latitude": site.lat,
-        "start": config.IRRADIANCE_START_DATE.replace("-", ""),
-        "end": config.IRRADIANCE_END_DATE.replace("-", ""),
+        "start": site.resolved_analysis_start().replace("-", ""),
+        "end": site.resolved_analysis_end().replace("-", ""),
         "format": "JSON",
     }
     response = requests.get(NASA_POWER_URL, params=params, timeout=120)

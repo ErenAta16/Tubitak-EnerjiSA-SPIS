@@ -9,6 +9,8 @@ from spis import config
 
 DEFAULT_SITE = "canakkale"
 PANEL_CLASS_JINKO_535 = "Jinko JKM535 bifacial"
+PANEL_CLASS_CANADIAN_SOLAR_POLY = "Canadian Solar poly-Si fixed (DKASC array 32, 5.3 kW)"
+ALICE_SPRINGS_MODULE_TEMP_COEFF = -0.0041
 
 
 @dataclass(frozen=True)
@@ -25,6 +27,22 @@ class SiteConfig:
     operational_data_available: bool
     coordinates_provisional: bool
     coordinates_note: str
+    analysis_start_date: str | None = None
+    analysis_end_date: str | None = None
+    module_temp_coeff: float | None = None
+
+    def resolved_analysis_start(self) -> str:
+        return self.analysis_start_date or config.IRRADIANCE_START_DATE
+
+    def resolved_analysis_end(self) -> str:
+        return self.analysis_end_date or config.IRRADIANCE_END_DATE
+
+    def resolved_module_temp_coeff(self) -> float:
+        return (
+            self.module_temp_coeff
+            if self.module_temp_coeff is not None
+            else config.MODULE_PMAX_TEMP_COEFF
+        )
 
 
 def _canakkale_site() -> SiteConfig:
@@ -39,6 +57,27 @@ def _canakkale_site() -> SiteConfig:
         operational_data_available=True,
         coordinates_provisional=False,
         coordinates_note="Confirmed plant coordinates (P2).",
+    )
+
+
+def _alice_springs_site() -> SiteConfig:
+    return SiteConfig(
+        key="alice_springs",
+        name="DKASC Alice Springs (array 32)",
+        lat=-23.762,
+        lon=133.874,
+        raw_data_dir=config.DATA_EXTERNAL / "dkasc",
+        processed_namespace="alice_springs",
+        panel_class=PANEL_CLASS_CANADIAN_SOLAR_POLY,
+        operational_data_available=True,
+        coordinates_provisional=False,
+        coordinates_note=(
+            "DKASC public research array; Canadian Solar 5.3 kW poly-Si fixed tilt. "
+            "Washing events inferred from rainfall and PI step-changes (no wash log)."
+        ),
+        analysis_start_date=config.IRRADIANCE_START_DATE,
+        analysis_end_date=config.IRRADIANCE_END_DATE,
+        module_temp_coeff=ALICE_SPRINGS_MODULE_TEMP_COEFF,
     )
 
 
@@ -63,6 +102,7 @@ def _balikesir_site() -> SiteConfig:
 SITES: dict[str, SiteConfig] = {
     "canakkale": _canakkale_site(),
     "balikesir": _balikesir_site(),
+    "alice_springs": _alice_springs_site(),
 }
 
 

@@ -8,7 +8,6 @@ from typing import Any
 import pandas as pd
 import requests
 
-from spis import config
 from spis.data_sources._cache import read_cache, write_cache
 from spis.sites import DEFAULT_SITE, get_site, site_external_subdir
 
@@ -55,8 +54,8 @@ def fetch_open_meteo_air_quality(
         "latitude": site.lat,
         "longitude": site.lon,
         "hourly": ",".join(AQ_VARIABLES),
-        "start_date": config.IRRADIANCE_START_DATE,
-        "end_date": config.IRRADIANCE_END_DATE,
+        "start_date": site.resolved_analysis_start(),
+        "end_date": site.resolved_analysis_end(),
     }
     response = requests.get(OPEN_METEO_AQ_URL, params=params, timeout=120)
     response.raise_for_status()
@@ -72,11 +71,11 @@ def fetch_open_meteo_air_quality(
 
     coverage_start = str(daily["date"].min().date())
     coverage_end = str(daily["date"].max().date())
-    if coverage_start > config.IRRADIANCE_START_DATE:
+    if coverage_start > site.resolved_analysis_start():
         LOGGER.warning(
             "CAMS coverage starts %s (requested %s); leading dates will be null in master join",
             coverage_start,
-            config.IRRADIANCE_START_DATE,
+            site.resolved_analysis_start(),
         )
 
     metadata = {

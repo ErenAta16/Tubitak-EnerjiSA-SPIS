@@ -28,8 +28,8 @@ def verify_multisite() -> bool:
     """Run P9 verifier checklist."""
     failures: list[str] = []
 
-    if set(SITES) != {"canakkale", "balikesir"}:
-        failures.append("SITES registry missing canakkale or balikesir")
+    if set(SITES) != {"canakkale", "balikesir", "alice_springs"}:
+        failures.append("SITES registry missing expected site keys")
     bal = SITES["balikesir"]
     if not bal.coordinates_provisional:
         failures.append("Balikesir coordinates_provisional must be True")
