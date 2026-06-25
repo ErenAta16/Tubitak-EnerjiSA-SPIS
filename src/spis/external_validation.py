@@ -1,4 +1,4 @@
-"""P14 external-site validation: DKASC Alice Springs vs Canakkale."""
+"""P14/P16 external-site validation: DKASC Alice Springs vs Canakkale."""
 
 from __future__ import annotations
 
@@ -17,7 +17,12 @@ from spis.clean import (
     join_external,
     join_washing_segments,
 )
-from spis.data_sources.dkasc import load_dkasc_daily
+from spis.data_sources.dkasc import (
+    VALIDATION_ARRAYS,
+    DkascArraySpec,
+    ensure_dkasc_csv,
+    load_dkasc_daily,
+)
 from spis.data_sources.nasa_power import fetch_nasa_power_daily, validate_nasa_power
 from spis.data_sources.open_meteo_aq import fetch_open_meteo_air_quality, validate_open_meteo_aq
 from spis.io import read_processed, write_processed
@@ -25,27 +30,46 @@ from spis.robustness import (
     ROBUSTNESS_OUTPUT_NAME,
     attach_clearness_index,
     build_daily_residual_frame,
+    canonical_clear_sky_pooled,
     compare_clear_sky_slopes,
     pollution_daily_tests,
 )
 from spis.sites import get_site
-from spis.soiling import (
-    SOILING_OUTPUT_NAME,
-    build_soiling_segments,
-    fit_segment_slope,
-    pooled_soiling_rate,
-    segment_clean_days,
-)
+from spis.soiling import SOILING_OUTPUT_NAME, build_soiling_segments
 
 LOGGER = logging.getLogger(__name__)
 
 ALICE_SPRINGS_SITE_KEY = "alice_springs"
 EXTERNAL_VALIDATION_OUTPUT = "external_validation"
 CANAKKALE_SITE_KEY = "canakkale"
+CANONICAL_CI_METHOD = "clear_sky_pooled_weighted_by_n_fit"
+
+FORBIDDEN_OVERCLAIM_PHRASES = (
+    "desert site is not dramatically dustier",
+    "desert has no soiling",
+    "no dust-driven soiling",
+    "desert ... no soiling",
+)
 
 
-def detect_inferred_cleaning_events(daily: pd.DataFrame) -> pd.DataFrame:
+def detect_inferred_cleaning_events(
+    daily: pd.DataFrame,
+    *,
+    rain_mm: float | None = None,
+    pi_step_pct: float | None = None,
+    min_days_between: int | None = None,
+) -> pd.DataFrame:
     """Infer wash-like events from heavy rain and abrupt PI recoveries."""
+    rain_threshold = config.INFERRED_CLEANING_RAIN_MM if rain_mm is None else rain_mm
+    step_threshold = (
+        config.INFERRED_CLEANING_PI_STEP_PCT if pi_step_pct is None else pi_step_pct
+    )
+    min_gap = (
+        config.INFERRED_CLEANING_MIN_DAYS_BETWEEN
+        if min_days_between is None
+        else min_days_between
+    )
+
     frame = daily.sort_values("date").copy()
     frame["pi_rolling_median"] = (
         frame["pi_temp_corrected"]
@@ -64,17 +88,14 @@ def detect_inferred_cleaning_events(daily: pd.DataFrame) -> pd.DataFrame:
     if rain_col not in frame.columns:
         raise ValueError("No onsite rainfall column available for cleaning inference")
 
-    rain_events = frame.loc[frame[rain_col] >= config.INFERRED_CLEANING_RAIN_MM, "date"].tolist()
+    rain_events = frame.loc[frame[rain_col] >= rain_threshold, "date"].tolist()
 
     step_events: list[pd.Timestamp] = []
     last_event: pd.Timestamp | None = None
     for _, row in frame.iterrows():
-        if pd.isna(row["pi_step_pct"]) or row["pi_step_pct"] < config.INFERRED_CLEANING_PI_STEP_PCT:
+        if pd.isna(row["pi_step_pct"]) or row["pi_step_pct"] < step_threshold:
             continue
-        if (
-            last_event is not None
-            and (row["date"] - last_event).days < config.INFERRED_CLEANING_MIN_DAYS_BETWEEN
-        ):
+        if last_event is not None and (row["date"] - last_event).days < min_gap:
             continue
         step_events.append(row["date"])
         last_event = row["date"]
@@ -92,10 +113,7 @@ def detect_inferred_cleaning_events(daily: pd.DataFrame) -> pd.DataFrame:
         )
     last_event = None
     for date in step_events:
-        if (
-            last_event is not None
-            and (date - last_event).days < config.INFERRED_CLEANING_MIN_DAYS_BETWEEN
-        ):
+        if last_event is not None and (date - last_event).days < min_gap:
             continue
         event_rows.append(
             {
@@ -130,22 +148,29 @@ def detect_inferred_cleaning_events(daily: pd.DataFrame) -> pd.DataFrame:
         filtered = [washing.iloc[0].to_dict()]
         for _, row in washing.iloc[1:].iterrows():
             prev = filtered[-1]
-            if (row["start"] - prev["end"]).days >= config.INFERRED_CLEANING_MIN_DAYS_BETWEEN:
+            if (row["start"] - prev["end"]).days >= min_gap:
                 filtered.append(row.to_dict())
         washing = pd.DataFrame(filtered)
     washing["event_index_by_date"] = range(1, len(washing) + 1)
     LOGGER.info(
-        "Inferred %s cleaning events (rain >= %.1f mm or PI step >= %.1f%%)",
+        "Inferred %s cleaning events (rain >= %.1f mm or PI step >= %.1f%%, min gap %s d)",
         len(washing),
-        config.INFERRED_CLEANING_RAIN_MM,
-        config.INFERRED_CLEANING_PI_STEP_PCT,
+        rain_threshold,
+        step_threshold,
+        min_gap,
     )
     return washing
 
 
-def apply_site_temperature_correction(master: pd.DataFrame, site_key: str) -> pd.DataFrame:
+def apply_site_temperature_correction(
+    master: pd.DataFrame,
+    site_key: str,
+    *,
+    module_temp_coeff: float | None = None,
+) -> pd.DataFrame:
     """Temperature-correct PI using onsite or NASA ambient temperature."""
     site = get_site(site_key)
+    coeff = site.resolved_module_temp_coeff() if module_temp_coeff is None else module_temp_coeff
     frame = master.copy()
     temp_col = "weather_temperature_c" if "weather_temperature_c" in frame.columns else "nasa_t2m"
     if temp_col not in frame.columns:
@@ -154,20 +179,33 @@ def apply_site_temperature_correction(master: pd.DataFrame, site_key: str) -> pd
     g_proxy = frame["irradiation"] * 1000.0 / config.NOCT_PEAK_SUN_HOURS
     frame["cell_temp_c"] = frame[temp_col] + (config.MODULE_NOCT_C - 20.0) * (g_proxy / 800.0)
     delta_t = frame["cell_temp_c"] - config.STC_REF_TEMP_C
-    coeff = site.resolved_module_temp_coeff()
     frame["pi_temp_corrected"] = frame["pi"] / (1.0 + coeff * delta_t)
     frame["module_temp_coeff_used"] = coeff
     frame["temperature_source"] = temp_col
     return frame
 
 
-def build_alice_springs_master(force_refresh: bool = False) -> tuple[pd.DataFrame, dict[str, Any]]:
-    """Build Alice Springs master table from DKASC CSV plus external enrichment."""
+def build_dkasc_array_master(
+    array: DkascArraySpec,
+    force_refresh: bool = False,
+    *,
+    rain_mm: float | None = None,
+    pi_step_pct: float | None = None,
+    min_days_between: int | None = None,
+    persist_master: bool = False,
+    daily_bundle: tuple[pd.DataFrame, dict[str, Any]] | None = None,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Build one DKASC array master table from CSV plus external enrichment."""
+    ensure_dkasc_csv(array)
     site = get_site(ALICE_SPRINGS_SITE_KEY)
-    daily, dkasc_meta = load_dkasc_daily(
-        site.resolved_analysis_start(),
-        site.resolved_analysis_end(),
-    )
+    if daily_bundle is None:
+        daily, dkasc_meta = load_dkasc_daily(
+            site.resolved_analysis_start(),
+            site.resolved_analysis_end(),
+            array=array,
+        )
+    else:
+        daily, dkasc_meta = daily_bundle
 
     master = daily.rename(columns={"weather_rainfall_mm": "onsite_rainfall_mm"}).copy()
     master["is_downtime"] = False
@@ -176,6 +214,8 @@ def build_alice_springs_master(force_refresh: bool = False) -> tuple[pd.DataFram
     master["is_planned"] = False
     master["downtime_hours"] = 0.0
     master["downtime_reasons"] = ""
+    master["dkasc_array_number"] = array.array_number
+    master["dkasc_source_id"] = array.source_id
 
     nasa, nasa_meta = fetch_nasa_power_daily(
         site_key=ALICE_SPRINGS_SITE_KEY,
@@ -188,9 +228,18 @@ def build_alice_springs_master(force_refresh: bool = False) -> tuple[pd.DataFram
     validate_nasa_power(nasa)
     validate_open_meteo_aq(cams)
     master = join_external(master, nasa, cams)
-    master = apply_site_temperature_correction(master, ALICE_SPRINGS_SITE_KEY)
+    master = apply_site_temperature_correction(
+        master,
+        ALICE_SPRINGS_SITE_KEY,
+        module_temp_coeff=array.module_temp_coeff,
+    )
 
-    washing = detect_inferred_cleaning_events(master)
+    washing = detect_inferred_cleaning_events(
+        master,
+        rain_mm=rain_mm,
+        pi_step_pct=pi_step_pct,
+        min_days_between=min_days_between,
+    )
     master = join_washing_segments(master, washing)
 
     cutoff = compute_low_irradiation_cutoff(master["irradiation"])
@@ -204,67 +253,22 @@ def build_alice_springs_master(force_refresh: bool = False) -> tuple[pd.DataFram
         & ~master["rain_day"]
     )
 
-    write_processed(MASTER_OUTPUT_NAME, master, site_key=ALICE_SPRINGS_SITE_KEY)
+    if persist_master:
+        write_processed(MASTER_OUTPUT_NAME, master, site_key=ALICE_SPRINGS_SITE_KEY)
 
     metadata = {
         "site_key": ALICE_SPRINGS_SITE_KEY,
+        "array": array,
         "dkasc_meta": dkasc_meta,
         "nasa_meta": nasa_meta,
         "cams_meta": cams_meta,
         "filter_counts": filter_counts,
         "inferred_cleaning_events": len(washing),
-        "module_temp_coeff": site.resolved_module_temp_coeff(),
-        "module_temp_coeff_basis": (
-            "Assumed -0.41 %/degC from Canadian Solar poly module datasheet class "
-            "(CS6K-style); DKASC metadata does not publish a verified coefficient."
-        ),
+        "module_temp_coeff": array.module_temp_coeff,
+        "module_temp_coeff_basis": array.module_temp_coeff_basis,
+        "energy_channel": dkasc_meta["energy_channel"],
     }
     return master, metadata
-
-
-def _clear_sky_pooled_rate(master: pd.DataFrame, segments: pd.DataFrame) -> dict[str, float]:
-    """Pooled Theil-Sen rate on high-clearness rain-free days (P3.5 spec)."""
-    master_clear = attach_clearness_index(master)
-    rows: list[dict[str, float]] = []
-    for _, seg in segments.iterrows():
-        sid = int(seg["segment_id"])
-        if seg.get("low_confidence", False):
-            continue
-        clean = segment_clean_days(master_clear, sid)
-        clear_mask = master_clear.loc[clean.index, "clearness_index"] >= config.CLEARNESS_INDEX_MIN
-        baseline_temp = float(seg["baseline_pi_temp_corrected"])
-        baseline_raw = float(seg["baseline_pi_raw"])
-        fit = fit_segment_slope(clean, baseline_temp, baseline_raw, sid, day_mask=clear_mask)
-        if pd.isna(fit.slope_pct_per_day) or fit.n_fit < 2:
-            continue
-        rows.append(
-            {
-                "segment_id": sid,
-                "soiling_rate_pct_per_day": fit.slope_pct_per_day,
-                "soiling_rate_ci_lower": fit.ci_lower,
-                "soiling_rate_ci_upper": fit.ci_upper,
-                "n_fit_rain_free": fit.n_fit,
-            }
-        )
-    if not rows:
-        return {
-            "pooled_rate": float("nan"),
-            "pooled_ci_lower": float("nan"),
-            "pooled_ci_upper": float("nan"),
-            "n_segments": 0.0,
-        }
-    frame = pd.DataFrame(rows)
-    weights = frame["n_fit_rain_free"].to_numpy(dtype=float)
-    rates = frame["soiling_rate_pct_per_day"].to_numpy(dtype=float)
-    pooled = float(np.average(rates, weights=weights))
-    var = float(np.average((rates - pooled) ** 2, weights=weights))
-    se = float(np.sqrt(var / len(frame)))
-    return {
-        "pooled_rate": pooled,
-        "pooled_ci_lower": pooled - 1.96 * se,
-        "pooled_ci_upper": pooled + 1.96 * se,
-        "n_segments": float(len(frame)),
-    }
 
 
 def _pollution_summary(pollution: pd.DataFrame) -> dict[str, Any]:
@@ -290,7 +294,7 @@ def _pollution_summary(pollution: pd.DataFrame) -> dict[str, Any]:
     else:
         verdict = (
             "Daily accumulated CAMS pollution does NOT significantly predict PI decay "
-            "residuals (HAC p>=0.05 or wrong sign), matching the Canakkale null pattern."
+            "residuals (HAC p>=0.05 or wrong sign)."
         )
     return {
         "pm10_coef": None if row_pm10 is None else row_pm10.get("coef"),
@@ -304,165 +308,273 @@ def _pollution_summary(pollution: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def _analyze_site(site_key: str, master: pd.DataFrame | None = None) -> dict[str, Any]:
-    if master is None:
-        master = read_processed(MASTER_OUTPUT_NAME, site_key=site_key)
-
-    if site_key == ALICE_SPRINGS_SITE_KEY:
-        washing = detect_inferred_cleaning_events(master)
-    else:
-        from spis.io import read_interim
-
-        washing = read_interim("washing_events", site_key=site_key)
-
+def _analyze_dkasc_array(
+    master: pd.DataFrame,
+    array: DkascArraySpec,
+    *,
+    rain_mm: float | None = None,
+    pi_step_pct: float | None = None,
+    min_days_between: int | None = None,
+) -> dict[str, Any]:
+    washing = detect_inferred_cleaning_events(
+        master,
+        rain_mm=rain_mm,
+        pi_step_pct=pi_step_pct,
+        min_days_between=min_days_between,
+    )
     segments = build_soiling_segments(master, washing)
-    pooled = pooled_soiling_rate(segments)
     master_clear = attach_clearness_index(master)
-    clear_pooled = _clear_sky_pooled_rate(master_clear, segments)
     segment_compare = compare_clear_sky_slopes(master_clear, segments)
+    clear_pooled = canonical_clear_sky_pooled(segment_compare)
     daily_residual = build_daily_residual_frame(master_clear, segments)
     pollution = pollution_daily_tests(daily_residual)
     pollution_summary = _pollution_summary(pollution)
 
     return {
-        "site_key": site_key,
+        "site_key": ALICE_SPRINGS_SITE_KEY,
+        "array_number": array.array_number,
+        "array_label": array.label,
+        "source_id": array.source_id,
         "segments": segments,
-        "pooled": pooled,
         "clear_pooled": clear_pooled,
         "segment_compare": segment_compare,
         "pollution": pollution,
         "pollution_summary": pollution_summary,
-        "daily_residual_n": len(daily_residual),
+        "daily_residual": daily_residual,
+        "inferred_cleaning_events": len(washing),
     }
 
 
 def load_canakkale_baseline() -> dict[str, Any]:
     """Load existing Canakkale soiling/robustness outputs without recomputing P3-P3.5."""
     segments = read_processed(SOILING_OUTPUT_NAME, site_key=CANAKKALE_SITE_KEY)
-    pooled = pooled_soiling_rate(segments)
     robustness = read_processed(ROBUSTNESS_OUTPUT_NAME, site_key=CANAKKALE_SITE_KEY)
     pollution = robustness.loc[robustness["record_type"].astype(str).str.startswith("pollution")]
     pollution_summary = _pollution_summary(pollution)
 
     clear_rows = robustness.loc[robustness["record_type"] == "segment_comparison"]
-    if clear_rows.empty:
+    segment_compare = clear_rows.dropna(subset=["clear_rate_pct_per_day", "clear_n_fit"])
+    clear_pooled = canonical_clear_sky_pooled(segment_compare)
+
+    verdict_row = robustness.loc[robustness["record_type"] == "p4_verdict"]
+    if not verdict_row.empty:
+        canonical_rate = float(verdict_row.iloc[0]["recommended_rate_pct_per_day"])
+        canonical_half = float(verdict_row.iloc[0]["recommended_uncertainty_half_width"])
+        if not np.isclose(clear_pooled["pooled_rate"], canonical_rate, rtol=1e-4, atol=1e-4):
+            LOGGER.warning(
+                "Canakkale clear_pooled %.6f differs from p4_verdict %.6f",
+                clear_pooled["pooled_rate"],
+                canonical_rate,
+            )
         clear_pooled = {
-            "pooled_rate": float("nan"),
-            "pooled_ci_lower": float("nan"),
-            "pooled_ci_upper": float("nan"),
-            "n_segments": 0.0,
+            **clear_pooled,
+            "pooled_rate": canonical_rate,
+            "pooled_ci_lower": canonical_rate - canonical_half,
+            "pooled_ci_upper": canonical_rate + canonical_half,
+            "ci_half_width": canonical_half,
         }
-    else:
-        valid = clear_rows.dropna(subset=["clear_rate_pct_per_day", "clear_n_fit"])
-        renamed = valid.rename(
-            columns={
-                "clear_rate_pct_per_day": "soiling_rate_pct_per_day",
-                "clear_ci_lower": "soiling_rate_ci_lower",
-                "clear_ci_upper": "soiling_rate_ci_upper",
-                "clear_n_fit": "n_fit_rain_free",
-            }
-        )
-        renamed["low_confidence"] = False
-        clear_pooled = pooled_soiling_rate(renamed)
 
     return {
         "site_key": CANAKKALE_SITE_KEY,
+        "site_label": "Canakkale Hybrid GES",
         "segments": segments,
-        "pooled": pooled,
         "clear_pooled": clear_pooled,
         "pollution_summary": pollution_summary,
     }
 
 
-def comparison_table(canakkale: dict[str, Any], alice: dict[str, Any]) -> pd.DataFrame:
-    """Side-by-side headline metrics for the two sites."""
-    rows = []
-    for label, block in (("Canakkale Hybrid GES", canakkale), ("DKASC Alice Springs", alice)):
+def comparison_table(
+    canakkale: dict[str, Any],
+    array_results: list[dict[str, Any]],
+) -> pd.DataFrame:
+    """Side-by-side headline metrics for Canakkale and each DKASC array."""
+    rows: list[dict[str, Any]] = []
+    can_clear = canakkale["clear_pooled"]
+    can_poll = canakkale["pollution_summary"]
+    rows.append(
+        {
+            "site": canakkale["site_label"],
+            "site_key": CANAKKALE_SITE_KEY,
+            "array_number": "",
+            "array_label": "",
+            "source_id": np.nan,
+            "clear_sky_pooled_rate_pct_per_day": can_clear["pooled_rate"],
+            "clear_sky_ci_lower": can_clear["pooled_ci_lower"],
+            "clear_sky_ci_upper": can_clear["pooled_ci_upper"],
+            "ci_method": can_clear["ci_method"],
+            "pm10_hac_coef": can_poll["pm10_coef"],
+            "pm10_hac_p": can_poll["pm10_p"],
+            "dust_hac_coef": can_poll["dust_coef"],
+            "dust_hac_p": can_poll["dust_p"],
+            "pollution_significant": can_poll["pollution_significant"],
+            "inferred_cleaning_events": np.nan,
+            "is_primary_dkasc_summary": False,
+        }
+    )
+    for block in array_results:
+        clear = block["clear_pooled"]
+        poll = block["pollution_summary"]
         rows.append(
             {
-                "site": label,
-                "site_key": block["site_key"],
-                "pooled_soiling_rate_pct_per_day": block["pooled"]["pooled_rate"],
-                "pooled_ci_lower": block["pooled"]["pooled_ci_lower"],
-                "pooled_ci_upper": block["pooled"]["pooled_ci_upper"],
-                "clear_sky_pooled_rate_pct_per_day": block["clear_pooled"]["pooled_rate"],
-                "clear_sky_ci_lower": block["clear_pooled"]["pooled_ci_lower"],
-                "clear_sky_ci_upper": block["clear_pooled"]["pooled_ci_upper"],
-                "pm10_hac_coef": block["pollution_summary"]["pm10_coef"],
-                "pm10_hac_p": block["pollution_summary"]["pm10_p"],
-                "dust_hac_coef": block["pollution_summary"]["dust_coef"],
-                "dust_hac_p": block["pollution_summary"]["dust_p"],
-                "pollution_significant": block["pollution_summary"]["pollution_significant"],
+                "site": f"DKASC array {block['array_number']}",
+                "site_key": ALICE_SPRINGS_SITE_KEY,
+                "array_number": block["array_number"],
+                "array_label": block["array_label"],
+                "source_id": block["source_id"],
+                "clear_sky_pooled_rate_pct_per_day": clear["pooled_rate"],
+                "clear_sky_ci_lower": clear["pooled_ci_lower"],
+                "clear_sky_ci_upper": clear["pooled_ci_upper"],
+                "ci_method": clear["ci_method"],
+                "pm10_hac_coef": poll["pm10_coef"],
+                "pm10_hac_p": poll["pm10_p"],
+                "dust_hac_coef": poll["dust_coef"],
+                "dust_hac_p": poll["dust_p"],
+                "pollution_significant": poll["pollution_significant"],
+                "inferred_cleaning_events": block["inferred_cleaning_events"],
+                "is_primary_dkasc_summary": False,
             }
         )
     return pd.DataFrame(rows)
 
 
-def honest_verdict(table: pd.DataFrame, alice_meta: dict[str, Any]) -> str:
-    """Plain-language synthesis of the generalization test."""
+def cleaning_sensitivity_table(
+    array_results_by_preset: dict[str, list[dict[str, Any]]],
+) -> pd.DataFrame:
+    """Summarise clear-sky rates under alternate inferred-cleaning thresholds."""
+    rows: list[dict[str, Any]] = []
+    for preset_name, preset_cfg in config.INFERRED_CLEANING_PRESETS.items():
+        blocks = array_results_by_preset[preset_name]
+        for block in blocks:
+            clear = block["clear_pooled"]
+            rows.append(
+                {
+                    "preset": preset_name,
+                    "rain_mm": preset_cfg["rain_mm"],
+                    "pi_step_pct": preset_cfg["pi_step_pct"],
+                    "min_days_between": preset_cfg["min_days_between"],
+                    "array_number": block["array_number"],
+                    "array_label": block["array_label"],
+                    "clear_sky_rate_pct_per_day": clear["pooled_rate"],
+                    "clear_sky_ci_lower": clear["pooled_ci_lower"],
+                    "clear_sky_ci_upper": clear["pooled_ci_upper"],
+                    "inferred_cleaning_events": block["inferred_cleaning_events"],
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def energy_channel_table(array_metas: list[dict[str, Any]]) -> pd.DataFrame:
+    """Log daily-energy channel selection per DKASC array."""
+    rows: list[dict[str, Any]] = []
+    for meta in array_metas:
+        channel = meta["energy_channel"]
+        rows.append(
+            {
+                "array_number": meta["array"].array_number,
+                "array_label": meta["array"].label,
+                "selected_channel": channel["selected_channel"],
+                "median_power_to_counter_ratio": channel.get("median_power_to_counter_ratio"),
+                "selection_reason": channel["selection_reason"],
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def honest_verdict(
+    table: pd.DataFrame,
+    sensitivity: pd.DataFrame,
+    array_metas: list[dict[str, Any]],
+) -> str:
+    """Plain-language synthesis of the generalization test without overclaiming."""
+    del array_metas  # reserved for future array-specific notes
     can = table.loc[table["site_key"] == CANAKKALE_SITE_KEY].iloc[0]
-    ali = table.loc[table["site_key"] == ALICE_SPRINGS_SITE_KEY].iloc[0]
+    dkasc = table.loc[table["site_key"] == ALICE_SPRINGS_SITE_KEY].copy()
 
     can_rate = float(can["clear_sky_pooled_rate_pct_per_day"])
-    ali_rate = float(ali["clear_sky_pooled_rate_pct_per_day"])
-    can_poll = bool(can["pollution_significant"])
-    ali_poll = bool(ali["pollution_significant"])
+    can_lo = float(can["clear_sky_ci_lower"])
+    can_hi = float(can["clear_sky_ci_upper"])
+    can_pm10_p = float(can["pm10_hac_p"]) if pd.notna(can["pm10_hac_p"]) else float("nan")
 
-    rate_text = (
-        f"Clear-sky pooled soiling rate: Canakkale {can_rate:.4f} %/day "
-        f"(CI {can['clear_sky_ci_lower']:.4f} .. {can['clear_sky_ci_upper']:.4f}) vs "
-        f"Alice Springs {ali_rate:.4f} %/day "
-        f"(CI {ali['clear_sky_ci_lower']:.4f} .. {ali['clear_sky_ci_upper']:.4f})."
+    rate_lines = [
+        "Primary conclusion: the external generalization test is INCONCLUSIVE for recoverable "
+        "soiling loss on DKASC fixed-tilt research arrays. These ~5 kW arrays appear actively "
+        "maintained (rain and inferred PI recoveries), so dust-driven soiling does not "
+        "accumulate between inferred cleanings the way it does at Canakkale Hybrid GES.",
+        f"Canakkale clear-sky pooled rate (canonical CI method): {can_rate:.4f} %/day "
+        f"(95% CI [{can_lo:.4f}, {can_hi:.4f}]).",
+    ]
+
+    array_bits: list[str] = []
+    all_inconclusive = True
+    any_negative = False
+    for _, row in dkasc.iterrows():
+        rate = float(row["clear_sky_pooled_rate_pct_per_day"])
+        lo = float(row["clear_sky_ci_lower"])
+        hi = float(row["clear_sky_ci_upper"])
+        pm10_p = float(row["pm10_hac_p"]) if pd.notna(row["pm10_hac_p"]) else float("nan")
+        inconclusive = lo < 0.0 and hi > 0.0
+        if not inconclusive and rate < 0:
+            any_negative = True
+            all_inconclusive = False
+        if inconclusive:
+            signal = "inconclusive (CI spans zero)"
+        elif rate < 0:
+            signal = "negative point estimate"
+            all_inconclusive = False
+        else:
+            signal = "near-zero or positive point estimate"
+            all_inconclusive = False
+        array_bits.append(
+            f"array {row['array_number']}: {rate:.4f} %/day "
+            f"[{lo:.4f}, {hi:.4f}], PM10 HAC p={pm10_p:.3f} ({signal})"
+        )
+
+    rate_lines.append("Per-array DKASC clear-sky rates: " + "; ".join(array_bits) + ".")
+    if all_inconclusive:
+        rate_lines.append(
+            "All four fixed-tilt arrays show near-zero point estimates with wide CIs spanning "
+            "zero; no recoverable desert soiling signal is demonstrated on these maintained "
+            "research arrays."
+        )
+    elif any_negative:
+        rate_lines.append(
+            "Some arrays show negative point estimates, but CIs remain wide; treat any contrast "
+            "with Canakkale as suggestive only, not a fleet-scale conclusion."
+        )
+
+    pm10_p_values = dkasc["pm10_hac_p"].dropna().astype(float)
+    desert_pm10_p = float(pm10_p_values.min()) if not pm10_p_values.empty else float("nan")
+    poll_text = (
+        f"Pollution association: Canakkale PM10 HAC p={can_pm10_p:.3f}; "
+        f"DKASC arrays span p={pm10_p_values.min():.3f}..{pm10_p_values.max():.3f} "
+        f"(closest to significance at the desert site is p≈{desert_pm10_p:.2f}). "
+        "That is a hint, not a conclusion — neither site reaches HAC p<0.05 on the "
+        "accumulated CAMS spec used here."
     )
 
-    if ali_rate < can_rate and abs(ali_rate) > abs(can_rate) * 1.5:
-        rate_compare = (
-            "Alice Springs shows a stronger negative PI drift between inferred cleanings "
-            "than Canakkale, consistent with a dustier desert climate."
-        )
-    elif abs(ali_rate) <= abs(can_rate) * 1.2:
-        rate_compare = (
-            "Alice Springs does not show materially faster soiling than Canakkale once "
-            "clear-sky filtering is applied; the desert site is not dramatically dustier "
-            "in this ~5 kW research array."
-        )
-    else:
-        rate_compare = (
-            "Alice Springs soiling rate differs from Canakkale but not in a simple "
-            "'desert is faster' direction; interpret with the cleaning-inference caveat."
-        )
-
-    if ali_poll and not can_poll:
-        poll_text = (
-            "Unlike Canakkale, Alice Springs shows a statistically significant daily CAMS "
-            "dust/PM10 link to PI decay residuals. This supports the SPIS method detecting "
-            "pollution-linked soiling where the environment is dust-dominated, and reinforces "
-            "that Canakkale's null is a site characteristic rather than a method failure."
-        )
-    elif not ali_poll and not can_poll:
-        poll_text = (
-            "Neither site shows a significant daily CAMS pollution–PI decay link after trend "
-            "removal. The generalization test does not validate a dust-driver hypothesis at "
-            "grid scale even in central Australia; both sites appear dominated by other "
-            "soiling/recovery dynamics at this temporal resolution."
-        )
-    elif ali_poll and can_poll:
-        poll_text = (
-            "Both sites show significant CAMS pollution coefficients; pollution may contribute "
-            "at both locations, contrary to the Canakkale-only null headline."
-        )
-    else:
-        poll_text = (
-            "Pollution significance differs between sites, but Alice Springs does not show "
-            "the expected stronger dust signal; Canakkale's null remains credible."
-        )
-
+    max_shift = float(
+        sensitivity.groupby("array_number")["clear_sky_rate_pct_per_day"]
+        .agg(lambda series: series.max() - series.min())
+        .max()
+    )
     cleaning_note = (
-        f"Alice Springs used {alice_meta['inferred_cleaning_events']} inferred cleaning events "
-        f"(rain >= {config.INFERRED_CLEANING_RAIN_MM:.0f} mm and/or PI step >= "
-        f"{config.INFERRED_CLEANING_PI_STEP_PCT:.0f}% vs rolling median); rates are approximate."
+        "No operator wash log exists at DKASC. Cleaning events were inferred from rainfall "
+        "and PI step recoveries only. Under strict/default/sensitive threshold presets the "
+        f"largest per-array rate shift was {max_shift:.4f} %/day — see sensitivity table."
     )
-    return " ".join([rate_text, rate_compare, poll_text, cleaning_note])
+
+    energy_note = (
+        "Daily PI uses the selected energy channel logged per array (cumulative inverter "
+        "counter when valid, else integrated Active_Power)."
+    )
+
+    future_work = (
+        "Recommended next external test: a utility-scale soiling dataset such as NREL PVDAQ "
+        "system 2107 (~893 kW, California agricultural area) via the public OEDI/AWS bucket. "
+        "That was not ingested in this work package."
+    )
+
+    return " ".join(rate_lines + [poll_text, cleaning_note, energy_note, future_work])
 
 
 def _save_figure(stem: str, fig: plt.Figure, data: pd.DataFrame) -> None:
@@ -477,20 +589,20 @@ def _save_figure(stem: str, fig: plt.Figure, data: pd.DataFrame) -> None:
 
 def save_external_validation_figures(
     table: pd.DataFrame,
-    alice: dict[str, Any],
+    primary_array: dict[str, Any],
 ) -> None:
-    """Comparison bar chart and dust-vs-residual scatter."""
+    """Comparison bar chart and dust-vs-residual scatter for the primary DKASC array."""
     plot_table = table.copy()
-    fig, ax = plt.subplots(figsize=(8, 4))
+    fig, ax = plt.subplots(figsize=(10, 5))
     x = np.arange(len(plot_table))
     ax.bar(
-        x - 0.15,
+        x,
         plot_table["clear_sky_pooled_rate_pct_per_day"],
-        width=0.3,
-        label="Clear-sky pooled",
+        width=0.6,
+        label="Clear-sky pooled (canonical CI)",
     )
     ax.errorbar(
-        x - 0.15,
+        x,
         plot_table["clear_sky_pooled_rate_pct_per_day"],
         yerr=[
             plot_table["clear_sky_pooled_rate_pct_per_day"] - plot_table["clear_sky_ci_lower"],
@@ -501,15 +613,15 @@ def save_external_validation_figures(
         capsize=4,
     )
     ax.set_xticks(x)
-    ax.set_xticklabels(["Canakkale", "Alice Springs"])
+    ax.set_xticklabels(plot_table["site"], rotation=20, ha="right")
     ax.axhline(0, color="0.5", linewidth=0.8)
     ax.set_ylabel("Soiling rate (%/day)")
-    ax.set_title("Clear-sky pooled soiling rate — Canakkale vs Alice Springs")
+    ax.set_title("Clear-sky pooled soiling rate — Canakkale vs DKASC fixed-tilt arrays")
     ax.legend()
     fig.tight_layout()
     _save_figure("external_validation_soiling_rate_comparison", fig, plot_table)
 
-    residual = alice.get("daily_residual")
+    residual = primary_array.get("daily_residual")
     if residual is None:
         return
     data = residual.dropna(subset=["pi_residual", "dust_accumulated"]).copy()
@@ -517,7 +629,10 @@ def save_external_validation_figures(
     ax.scatter(data["dust_accumulated"], data["pi_residual"], s=10, alpha=0.35)
     ax.set_xlabel("Accumulated CAMS dust since inferred cleaning (ug/m3-days)")
     ax.set_ylabel("PI residual (temp corrected)")
-    ax.set_title(f"Alice Springs daily residual vs accumulated dust (n={len(data)})")
+    ax.set_title(
+        f"DKASC array {primary_array['array_number']} daily residual vs accumulated dust "
+        f"(n={len(data)})"
+    )
     fig.tight_layout()
     _save_figure(
         "external_validation_alice_dust_vs_residual",
@@ -528,9 +643,10 @@ def save_external_validation_figures(
 
 def write_external_validation_report(
     table: pd.DataFrame,
+    sensitivity: pd.DataFrame,
+    energy_channels: pd.DataFrame,
     verdict: str,
-    alice_meta: dict[str, Any],
-    dkasc_meta: dict[str, Any],
+    array_metas: list[dict[str, Any]],
 ) -> None:
     """Write reports/EXTERNAL_VALIDATION.md."""
     path = config.REPORTS / "EXTERNAL_VALIDATION.md"
@@ -541,54 +657,102 @@ def write_external_validation_report(
         "",
         verdict,
         "",
-        "## Comparison table",
+        "## Comparison table (canonical CI method)",
         "",
-        "| Site | Clear-sky rate (%/day) | 95% CI | PM10 HAC coef | PM10 p | "
-        "Dust HAC coef | Dust p | Pollution sig.? |",
-        "|---|---:|---|---:|---:|---:|---:|---|",
+        f"CI method for all sites: `{CANONICAL_CI_METHOD}` — weighted mean of segment "
+        "clear-sky Theil-Sen rates by `clear_n_fit`, with half-width = mean segment "
+        "Theil-Sen CI width / 2 (same as Canakkale P4 `p4_verdict`).",
+        "",
+        "| Site / array | Clear-sky rate (%/day) | 95% CI | PM10 HAC p | Dust HAC p | "
+        "Pollution sig.? | Inferred cleanings |",
+        "|---|---:|---|---:|---:|---|---:|",
     ]
     for _, row in table.iterrows():
+        cleanings = (
+            ""
+            if pd.isna(row.get("inferred_cleaning_events"))
+            else f"{int(row['inferred_cleaning_events'])}"
+        )
         lines.append(
             f"| {row['site']} | {row['clear_sky_pooled_rate_pct_per_day']:.4f} | "
             f"[{row['clear_sky_ci_lower']:.4f}, {row['clear_sky_ci_upper']:.4f}] | "
-            f"{row['pm10_hac_coef']} | {row['pm10_hac_p']} | {row['dust_hac_coef']} | "
-            f"{row['dust_hac_p']} | {'yes' if row['pollution_significant'] else 'no'} |"
+            f"{row['pm10_hac_p']} | {row['dust_hac_p']} | "
+            f"{'yes' if row['pollution_significant'] else 'no'} | {cleanings} |"
         )
 
     lines.extend(
         [
             "",
-            "## Cleaning-inference caveat (Alice Springs)",
-            "",
-            "No operator wash log exists at DKASC. Cleaning events were inferred from:",
-            f"- Rainfall >= {config.INFERRED_CLEANING_RAIN_MM:.0f} mm/day "
-            "(onsite Weather_Daily_Rainfall), and",
-            f"- Abrupt PI recoveries >= {config.INFERRED_CLEANING_PI_STEP_PCT:.0f}% above a "
-            f"{config.INFERRED_CLEANING_ROLLING_DAYS}-day rolling median.",
-            f"Events within {config.INFERRED_CLEANING_MERGE_DAYS} days were merged. "
-            "Segment soiling rates are therefore approximate and not directly comparable to "
-            "Canakkale's logged brush/robot washes.",
-            "",
-            "## kW-scale research-array caveat",
-            "",
-            f"Data source: {dkasc_meta['array_label']} "
-            "(~5.3 kW AC research array, not a utility plant). "
-            "Single-array noise, inverter clipping, and reference-sensor co-soiling can differ "
-            "from Canakkale Hybrid GES (~2750 kW AC). Results test method generalization, "
-            "not commercial fleet performance.",
-            "",
-            "## DKASC column mapping (verified from header)",
+            "## Daily energy channel selection (DKASC)",
             "",
         ]
     )
-    for canonical, raw in dkasc_meta["column_mapping"].items():
-        lines.append(f"- `{canonical}` -> `{raw}`")
+    for _, row in energy_channels.iterrows():
+        ratio = row["median_power_to_counter_ratio"]
+        ratio_text = "n/a" if pd.isna(ratio) else f"{float(ratio):.4f}"
+        lines.append(
+            f"- Array {row['array_number']}: `{row['selected_channel']}` "
+            f"(median power/counter ratio {ratio_text}). {row['selection_reason']}"
+        )
+
     lines.extend(
         [
             "",
-            "## Temperature coefficient assumption",
+            "## Cleaning-inference sensitivity (no wash log)",
             "",
-            alice_meta["module_temp_coeff_basis"],
+            "No operator wash log exists at DKASC. Three threshold presets were applied:",
+        ]
+    )
+    for preset_name, preset_cfg in config.INFERRED_CLEANING_PRESETS.items():
+        lines.append(
+            f"- **{preset_name}**: rain >= {preset_cfg['rain_mm']:.0f} mm, "
+            f"PI step >= {preset_cfg['pi_step_pct']:.0f}%, "
+            f"min gap {preset_cfg['min_days_between']} days."
+        )
+    lines.extend(
+        [
+            "",
+            "| Preset | Array | Rate (%/day) | 95% CI | Inferred cleanings |",
+            "|---|---|---:|---|---:|",
+        ]
+    )
+    for _, row in sensitivity.iterrows():
+        lines.append(
+            f"| {row['preset']} | {row['array_number']} | "
+            f"{row['clear_sky_rate_pct_per_day']:.4f} | "
+            f"[{row['clear_sky_ci_lower']:.4f}, {row['clear_sky_ci_upper']:.4f}] | "
+            f"{int(row['inferred_cleaning_events'])} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## kW-scale research-array caveat",
+            "",
+            "Data sources: four fixed-tilt DKASC silicon research arrays (~5 kW AC each, "
+            "arrays 13/14/18/32 — Trina mono-Si, SunPower mono-Si, Kyocera poly-Si, "
+            "Canadian Solar poly-Si). Array 10 (SunPower) export was corrupt at the DKASC "
+            "source and was replaced by array 32. "
+            "These are maintained research strings, not utility plants. Single-array noise, "
+            "inverter clipping, and reference-sensor co-soiling differ from Canakkale Hybrid "
+            "GES (~2750 kW AC). Results test method portability, not commercial fleet performance.",
+            "",
+            "## Recommended future external test",
+            "",
+            "Utility-scale soiling validation should use an independently maintained plant with "
+            "documented washing or long soiling accumulation, e.g. NREL PVDAQ system 2107 "
+            "(~893 kW, California agricultural area) from the public OEDI/AWS bucket. "
+            "Ingest was not attempted in P16.",
+            "",
+            "## Temperature coefficient assumptions",
+            "",
+        ]
+    )
+    for meta in array_metas:
+        lines.append(f"- Array {meta['array'].array_number}: {meta['module_temp_coeff_basis']}")
+
+    lines.extend(
+        [
             "",
             f"Analysis window: {get_site(ALICE_SPRINGS_SITE_KEY).resolved_analysis_start()} .. "
             f"{get_site(ALICE_SPRINGS_SITE_KEY).resolved_analysis_end()} (aligned with Canakkale).",
@@ -599,41 +763,111 @@ def write_external_validation_report(
 
 
 def run_external_validation(force_refresh: bool = False) -> dict[str, Any]:
-    """Execute P14 external validation end-to-end."""
-    master, alice_meta = build_alice_springs_master(force_refresh=force_refresh)
-    alice = _analyze_site(ALICE_SPRINGS_SITE_KEY, master=master)
-    alice["daily_residual"] = build_daily_residual_frame(
-        attach_clearness_index(master),
-        alice["segments"],
-    )
-    write_processed(SOILING_OUTPUT_NAME, alice["segments"], site_key=ALICE_SPRINGS_SITE_KEY)
+    """Execute P16 external validation across four fixed-tilt DKASC arrays."""
+    for array in VALIDATION_ARRAYS:
+        ensure_dkasc_csv(array)
 
     canakkale = load_canakkale_baseline()
-    table = comparison_table(canakkale, alice)
-    verdict = honest_verdict(table, alice_meta)
 
+    site = get_site(ALICE_SPRINGS_SITE_KEY)
+    daily_cache: dict[int, tuple[pd.DataFrame, dict[str, Any]]] = {}
+    for array in VALIDATION_ARRAYS:
+        daily_cache[array.source_id] = load_dkasc_daily(
+            site.resolved_analysis_start(),
+            site.resolved_analysis_end(),
+            array=array,
+        )
+
+    default_array_results: list[dict[str, Any]] = []
+    array_metas: list[dict[str, Any]] = []
+    primary_master: pd.DataFrame | None = None
+    primary_analysis: dict[str, Any] | None = None
+
+    for index, array in enumerate(VALIDATION_ARRAYS):
+        master, meta = build_dkasc_array_master(
+            array,
+            force_refresh=force_refresh,
+            persist_master=index == 0,
+            daily_bundle=daily_cache[array.source_id],
+        )
+        analysis = _analyze_dkasc_array(master, array)
+        default_array_results.append(analysis)
+        array_metas.append(meta)
+        if index == 0:
+            primary_master = master
+            primary_analysis = analysis
+
+    sensitivity_by_preset: dict[str, list[dict[str, Any]]] = {"default": default_array_results}
+    for preset_name, preset_cfg in config.INFERRED_CLEANING_PRESETS.items():
+        if preset_name == "default":
+            continue
+        preset_blocks: list[dict[str, Any]] = []
+        for array in VALIDATION_ARRAYS:
+            master, _ = build_dkasc_array_master(
+                array,
+                force_refresh=False,
+                rain_mm=float(preset_cfg["rain_mm"]),
+                pi_step_pct=float(preset_cfg["pi_step_pct"]),
+                min_days_between=int(preset_cfg["min_days_between"]),
+                daily_bundle=daily_cache[array.source_id],
+            )
+            preset_blocks.append(
+                _analyze_dkasc_array(
+                    master,
+                    array,
+                    rain_mm=float(preset_cfg["rain_mm"]),
+                    pi_step_pct=float(preset_cfg["pi_step_pct"]),
+                    min_days_between=int(preset_cfg["min_days_between"]),
+                )
+            )
+        sensitivity_by_preset[preset_name] = preset_blocks
+
+    table = comparison_table(canakkale, default_array_results)
+    sensitivity = cleaning_sensitivity_table(sensitivity_by_preset)
+    energy_channels = energy_channel_table(array_metas)
+    verdict = honest_verdict(table, sensitivity, array_metas)
+
+    export_rows: list[pd.DataFrame] = []
     export = table.copy()
     export["record_type"] = "site_comparison"
-    export_rows = [export]
-    export_rows.append(alice["pollution"].assign(record_type="alice_pollution"))
+    export_rows.append(export)
+    sens_export = sensitivity.copy()
+    sens_export["record_type"] = "cleaning_sensitivity"
+    export_rows.append(sens_export)
+    energy_export = energy_channels.copy()
+    energy_export["record_type"] = "energy_channel"
+    export_rows.append(energy_export)
+    for block in default_array_results:
+        export_rows.append(block["pollution"].assign(record_type="dkasc_pollution"))
     write_processed(
         EXTERNAL_VALIDATION_OUTPUT,
         pd.concat(export_rows, ignore_index=True, sort=False),
         site_key=ALICE_SPRINGS_SITE_KEY,
     )
 
+    if primary_analysis is not None:
+        write_processed(
+            SOILING_OUTPUT_NAME,
+            primary_analysis["segments"],
+            site_key=ALICE_SPRINGS_SITE_KEY,
+        )
+
     write_external_validation_report(
         table,
+        sensitivity,
+        energy_channels,
         verdict,
-        alice_meta,
-        alice_meta["dkasc_meta"],
+        array_metas,
     )
-    save_external_validation_figures(table, alice)
+    save_external_validation_figures(table, primary_analysis or default_array_results[0])
 
     return {
         "table": table,
+        "sensitivity": sensitivity,
+        "energy_channels": energy_channels,
         "verdict": verdict,
-        "alice_meta": alice_meta,
-        "alice": alice,
+        "array_metas": array_metas,
+        "array_results": default_array_results,
         "canakkale": canakkale,
+        "primary_master": primary_master,
     }

@@ -2,39 +2,62 @@
 
 ## Verdict
 
-Clear-sky pooled soiling rate: Canakkale -0.1247 %/day (CI -0.2254 .. -0.0241) vs Alice Springs -0.0384 %/day (CI -0.5439 .. 0.4671). Alice Springs does not show materially faster soiling than Canakkale once clear-sky filtering is applied; the desert site is not dramatically dustier in this ~5 kW research array. Neither site shows a significant daily CAMS pollution–PI decay link after trend removal. The generalization test does not validate a dust-driver hypothesis at grid scale even in central Australia; both sites appear dominated by other soiling/recovery dynamics at this temporal resolution. Alice Springs used 57 inferred cleaning events (rain >= 10 mm and/or PI step >= 5% vs rolling median); rates are approximate.
+Primary conclusion: the external generalization test is INCONCLUSIVE for recoverable soiling loss on DKASC fixed-tilt research arrays. These ~5 kW arrays appear actively maintained (rain and inferred PI recoveries), so dust-driven soiling does not accumulate between inferred cleanings the way it does at Canakkale Hybrid GES. Canakkale clear-sky pooled rate (canonical CI method): -0.1247 %/day (95% CI [-0.1855, -0.0640]). Per-array DKASC clear-sky rates: array 13: 0.1674 %/day [-9.2212, 9.5559], PM10 HAC p=0.029 (inconclusive (CI spans zero)); array 18: 0.0947 %/day [-4.7515, 4.9409], PM10 HAC p=0.007 (inconclusive (CI spans zero)); array 14: -0.1437 %/day [-4.1452, 3.8577], PM10 HAC p=0.712 (inconclusive (CI spans zero)); array 32: 0.5471 %/day [-5.0271, 6.1213], PM10 HAC p=0.011 (inconclusive (CI spans zero)). All four fixed-tilt arrays show near-zero point estimates with wide CIs spanning zero; no recoverable desert soiling signal is demonstrated on these maintained research arrays. Pollution association: Canakkale PM10 HAC p=0.727; DKASC arrays span p=0.007..0.712 (closest to significance at the desert site is p≈0.01). That is a hint, not a conclusion — neither site reaches HAC p<0.05 on the accumulated CAMS spec used here. No operator wash log exists at DKASC. Cleaning events were inferred from rainfall and PI step recoveries only. Under strict/default/sensitive threshold presets the largest per-array rate shift was 1.4090 %/day — see sensitivity table. Daily PI uses the selected energy channel logged per array (cumulative inverter counter when valid, else integrated Active_Power). Recommended next external test: a utility-scale soiling dataset such as NREL PVDAQ system 2107 (~893 kW, California agricultural area) via the public OEDI/AWS bucket. That was not ingested in this work package.
 
-## Comparison table
+## Comparison table (canonical CI method)
 
-| Site | Clear-sky rate (%/day) | 95% CI | PM10 HAC coef | PM10 p | Dust HAC coef | Dust p | Pollution sig.? |
-|---|---:|---|---:|---:|---:|---:|---|
-| Canakkale Hybrid GES | -0.1247 | [-0.2254, -0.0241] | 1.2480219758461097e-05 | 0.7270621311715896 | 5.4809231205801e-05 | 0.6596967140685642 | no |
-| DKASC Alice Springs | -0.0384 | [-0.5439, 0.4671] | 5.5303244106025436e-09 | 0.08132798984573436 | 2.3548417389714836e-09 | 0.10370582074555736 | no |
+CI method for all sites: `clear_sky_pooled_weighted_by_n_fit` — weighted mean of segment clear-sky Theil-Sen rates by `clear_n_fit`, with half-width = mean segment Theil-Sen CI width / 2 (same as Canakkale P4 `p4_verdict`).
 
-## Cleaning-inference caveat (Alice Springs)
+| Site / array | Clear-sky rate (%/day) | 95% CI | PM10 HAC p | Dust HAC p | Pollution sig.? | Inferred cleanings |
+|---|---:|---|---:|---:|---|---:|
+| Canakkale Hybrid GES | -0.1247 | [-0.1855, -0.0640] | 0.7270621311715896 | 0.6596967140685642 | no |  |
+| DKASC array 13 | 0.1674 | [-9.2212, 9.5559] | 0.029011772025135406 | 0.012842089587224917 | no | 56 |
+| DKASC array 18 | 0.0947 | [-4.7515, 4.9409] | 0.007203363819428786 | 0.011510800784584376 | no | 57 |
+| DKASC array 14 | -0.1437 | [-4.1452, 3.8577] | 0.7124716426818489 | 0.5459374485444846 | no | 57 |
+| DKASC array 32 | 0.5471 | [-5.0271, 6.1213] | 0.010688818955303988 | 0.020021620072582506 | no | 57 |
 
-No operator wash log exists at DKASC. Cleaning events were inferred from:
-- Rainfall >= 10 mm/day (onsite Weather_Daily_Rainfall), and
-- Abrupt PI recoveries >= 5% above a 7-day rolling median.
-Events within 3 days were merged. Segment soiling rates are therefore approximate and not directly comparable to Canakkale's logged brush/robot washes.
+## Daily energy channel selection (DKASC)
+
+- Array 13: `cumulative_counter` (median power/counter ratio 0.8973). Inverter cumulative Active_Energy_Delivered_Received daily difference used (median power/counter ratio 0.8973; 99.4% days with positive counter).
+- Array 18: `cumulative_counter` (median power/counter ratio 0.8843). Inverter cumulative Active_Energy_Delivered_Received daily difference used (median power/counter ratio 0.8843; 99.6% days with positive counter).
+- Array 14: `cumulative_counter` (median power/counter ratio 0.8818). Inverter cumulative Active_Energy_Delivered_Received daily difference used (median power/counter ratio 0.8818; 99.5% days with positive counter).
+- Array 32: `cumulative_counter` (median power/counter ratio 0.8942). Inverter cumulative Active_Energy_Delivered_Received daily difference used (median power/counter ratio 0.8942; 99.2% days with positive counter).
+
+## Cleaning-inference sensitivity (no wash log)
+
+No operator wash log exists at DKASC. Three threshold presets were applied:
+- **strict**: rain >= 15 mm, PI step >= 7%, min gap 21 days.
+- **default**: rain >= 10 mm, PI step >= 5%, min gap 14 days.
+- **sensitive**: rain >= 5 mm, PI step >= 3%, min gap 7 days.
+
+| Preset | Array | Rate (%/day) | 95% CI | Inferred cleanings |
+|---|---|---:|---|---:|
+| strict | 13 | -0.2251 | [-3.8111, 3.3610] | 39 |
+| strict | 18 | -0.1987 | [-2.5187, 2.1214] | 40 |
+| strict | 14 | -0.0534 | [-2.3418, 2.2350] | 41 |
+| strict | 32 | 0.0620 | [-1.8882, 2.0122] | 42 |
+| default | 13 | 0.1674 | [-9.2212, 9.5559] | 56 |
+| default | 18 | 0.0947 | [-4.7515, 4.9409] | 57 |
+| default | 14 | -0.1437 | [-4.1452, 3.8577] | 57 |
+| default | 32 | 0.5471 | [-5.0271, 6.1213] | 57 |
+| sensitive | 13 | -1.2416 | [-23.4393, 20.9562] | 104 |
+| sensitive | 18 | -0.9624 | [-21.5452, 19.6204] | 100 |
+| sensitive | 14 | -0.8416 | [-20.7451, 19.0619] | 107 |
+| sensitive | 32 | -0.5935 | [-20.4659, 19.2788] | 111 |
 
 ## kW-scale research-array caveat
 
-Data source: Canadian Solar 5.3 kW poly-Si fixed tilt (DKASC array 32, M18 B Phase II) (~5.3 kW AC research array, not a utility plant). Single-array noise, inverter clipping, and reference-sensor co-soiling can differ from Canakkale Hybrid GES (~2750 kW AC). Results test method generalization, not commercial fleet performance.
+Data sources: four fixed-tilt DKASC silicon research arrays (~5 kW AC each, arrays 13/14/18/32 — Trina mono-Si, SunPower mono-Si, Kyocera poly-Si, Canadian Solar poly-Si). Array 10 (SunPower) export was corrupt at the DKASC source and was replaced by array 32. These are maintained research strings, not utility plants. Single-array noise, inverter clipping, and reference-sensor co-soiling differ from Canakkale Hybrid GES (~2750 kW AC). Results test method portability, not commercial fleet performance.
 
-## DKASC column mapping (verified from header)
+## Recommended future external test
 
-- `timestamp` -> `timestamp`
-- `active_power_kw` -> `Active_Power`
-- `active_energy_cumulative` -> `Active_Energy_Delivered_Received`
-- `ghi_wm2` -> `Global_Horizontal_Radiation`
-- `weather_temperature_c` -> `Weather_Temperature_Celsius`
-- `weather_humidity_pct` -> `Weather_Relative_Humidity`
-- `weather_wind_speed` -> `Wind_Speed`
-- `weather_rainfall_mm` -> `Weather_Daily_Rainfall`
+Utility-scale soiling validation should use an independently maintained plant with documented washing or long soiling accumulation, e.g. NREL PVDAQ system 2107 (~893 kW, California agricultural area) from the public OEDI/AWS bucket. Ingest was not attempted in P16.
 
-## Temperature coefficient assumption
+## Temperature coefficient assumptions
 
-Assumed -0.41 %/degC from Canadian Solar poly module datasheet class (CS6K-style); DKASC metadata does not publish a verified coefficient.
+- Array 13: Assumed -0.41 %/degC from Trina mono-Si datasheet class; DKASC metadata does not publish a verified coefficient.
+- Array 18: Assumed -0.38 %/degC from SunPower mono-Si datasheet class; DKASC metadata does not publish a verified coefficient.
+- Array 14: Assumed -0.45 %/degC from Kyocera poly-Si datasheet class; DKASC metadata does not publish a verified coefficient.
+- Array 32: Assumed -0.41 %/degC from Canadian Solar poly module datasheet class (CS6K-style); DKASC metadata does not publish a verified coefficient.
 
 Analysis window: 2023-01-01 .. 2025-10-22 (aligned with Canakkale).

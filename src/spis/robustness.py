@@ -422,6 +422,33 @@ def compare_rain_vs_wash_cleaning(
     }
 
 
+def canonical_clear_sky_pooled(segment_compare: pd.DataFrame) -> dict[str, float]:
+    """P4 canonical clear-sky pooled rate and CI (weighted mean + mean segment CI width)."""
+    valid = segment_compare.dropna(subset=["clear_rate_pct_per_day", "clear_n_fit"])
+    if valid.empty:
+        return {
+            "pooled_rate": float("nan"),
+            "pooled_ci_lower": float("nan"),
+            "pooled_ci_upper": float("nan"),
+            "ci_half_width": float("nan"),
+            "ci_method": "clear_sky_pooled_weighted_by_n_fit",
+            "n_segments": 0.0,
+        }
+    weights = valid["clear_n_fit"].to_numpy(dtype=float)
+    rates = valid["clear_rate_pct_per_day"].to_numpy(dtype=float)
+    pooled = float(np.average(rates, weights=weights))
+    ci_width = float(valid["clear_ci_upper"].mean() - valid["clear_ci_lower"].mean())
+    half = ci_width / 2.0
+    return {
+        "pooled_rate": pooled,
+        "pooled_ci_lower": pooled - half,
+        "pooled_ci_upper": pooled + half,
+        "ci_half_width": half,
+        "ci_method": "clear_sky_pooled_weighted_by_n_fit",
+        "n_segments": float(len(valid)),
+    }
+
+
 def p4_verdict(
     segment_compare: pd.DataFrame,
     pollution: pd.DataFrame,
@@ -430,10 +457,9 @@ def p4_verdict(
     ground_pairs: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Summarise robustness for P4 and the written report."""
+    canonical = canonical_clear_sky_pooled(segment_compare)
+    clear_pooled = canonical["pooled_rate"]
     valid_clear = segment_compare.dropna(subset=["clear_rate_pct_per_day"])
-    weights = valid_clear["clear_n_fit"].to_numpy(dtype=float)
-    rates = valid_clear["clear_rate_pct_per_day"].to_numpy(dtype=float)
-    clear_pooled = float(np.average(rates, weights=weights)) if len(valid_clear) else float("nan")
 
     pm10 = pollution.loc[pollution["record_type"] == "pollution_pm10"].iloc[0]
     ground_acc = pollution.loc[
@@ -488,13 +514,11 @@ def p4_verdict(
         pollution_verdict = "inconclusive"
         insitu_note = "Pollution regressions inconclusive"
 
-    ci_width = (
-        float(valid_clear["clear_ci_upper"].mean() - valid_clear["clear_ci_lower"].mean())
-        if not valid_clear.empty
-        else float("nan")
-    )
+    half_width = canonical["ci_half_width"]
+    ci_width = half_width * 2.0 if pd.notna(half_width) else float("nan")
     robust_enough = (
         not valid_clear.empty
+        and pd.notna(ci_width)
         and ci_width < 0.25
         and valid_clear["clear_rate_pct_per_day"].median() < 0
     )
@@ -503,8 +527,8 @@ def p4_verdict(
         "record_type": "p4_verdict",
         "robust_enough_for_scheduling": bool(robust_enough),
         "recommended_rate_pct_per_day": clear_pooled,
-        "recommended_uncertainty_half_width": ci_width / 2,
-        "rate_basis": "clear_sky_pooled_weighted_by_n_fit",
+        "recommended_uncertainty_half_width": canonical["ci_half_width"],
+        "rate_basis": canonical["ci_method"],
         "pollution_verdict": pollution_verdict,
         "insitu_pollution_note": insitu_note,
         "pm10_coef": pm10.get("coef"),

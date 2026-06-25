@@ -48,12 +48,35 @@ RAIN_RECOVERY_WINDOW_DAYS: int = 3
 HAC_MAX_LAGS: int = 7
 BLOCK_BOOTSTRAP_SAMPLES: int = 200
 
-# P14 inferred cleaning at sites without wash logs (DKASC Alice Springs).
+# P14/P16 inferred cleaning at sites without wash logs (DKASC Alice Springs).
 INFERRED_CLEANING_RAIN_MM: float = 10.0
 INFERRED_CLEANING_PI_STEP_PCT: float = 5.0
 INFERRED_CLEANING_ROLLING_DAYS: int = 7
 INFERRED_CLEANING_MERGE_DAYS: int = 3
 INFERRED_CLEANING_MIN_DAYS_BETWEEN: int = 14
+
+INFERRED_CLEANING_PRESETS: dict[str, dict[str, float | int]] = {
+    "strict": {
+        "rain_mm": 15.0,
+        "pi_step_pct": 7.0,
+        "min_days_between": 21,
+    },
+    "default": {
+        "rain_mm": INFERRED_CLEANING_RAIN_MM,
+        "pi_step_pct": INFERRED_CLEANING_PI_STEP_PCT,
+        "min_days_between": INFERRED_CLEANING_MIN_DAYS_BETWEEN,
+    },
+    "sensitive": {
+        "rain_mm": 5.0,
+        "pi_step_pct": 3.0,
+        "min_days_between": 7,
+    },
+}
+
+# Prefer cumulative counter when daily register is positive and within this ratio band.
+DKASC_COUNTER_RATIO_MIN: float = 0.85
+DKASC_COUNTER_RATIO_MAX: float = 1.15
+DKASC_COUNTER_VALID_FRACTION: float = 0.95
 
 # P4 washing optimization (ASSUMED until Enerjisa/EPIAS supply real values).
 PRODUCTION_UNITS: str = "kWh/day"

@@ -1,4 +1,4 @@
-"""Verifier gate for P14 external validation (DKASC Alice Springs)."""
+"""Verifier gate for P16 external validation (DKASC Alice Springs)."""
 
 from __future__ import annotations
 
@@ -7,18 +7,27 @@ import logging
 import sys
 from pathlib import Path
 
+import numpy as np
+
 from spis import config
 from spis.clean import MASTER_OUTPUT_NAME, build_master_table
 from spis.external_validation import (
+    CANAKKALE_SITE_KEY,
+    CANONICAL_CI_METHOD,
     EXTERNAL_VALIDATION_OUTPUT,
+    FORBIDDEN_OVERCLAIM_PHRASES,
     run_external_validation,
 )
+from spis.io import read_processed
+from spis.robustness import ROBUSTNESS_OUTPUT_NAME
 from spis.sites import SITES, get_site
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 LOGGER = logging.getLogger("verifier")
 
 CANAKKALE_MASTER_HASH = "bd1b07716649028b016f26d381216c6553c0ccc370ff2bd0cb88b61586c2c552"
+CANONICAL_CANAKKALE_RATE = -0.1247
+CANONICAL_CANAKKALE_CI = (-0.186, -0.064)
 
 
 def _hash_parquet(path: Path) -> str:
@@ -26,7 +35,7 @@ def _hash_parquet(path: Path) -> str:
 
 
 def verify_external_validation() -> bool:
-    """Run P14 verifier checklist."""
+    """Run P16 verifier checklist."""
     failures: list[str] = []
 
     if "alice_springs" not in SITES:
@@ -57,15 +66,20 @@ def verify_external_validation() -> bool:
     if not report_path.exists():
         failures.append("EXTERNAL_VALIDATION.md missing")
     else:
-        text = report_path.read_text(encoding="utf-8")
+        text = report_path.read_text(encoding="utf-8").lower()
         for phrase in (
-            "Cleaning-inference caveat",
-            "kW-scale research-array caveat",
-            "Verdict",
-            "column mapping",
+            "cleaning-inference sensitivity",
+            "kw-scale research-array caveat",
+            "verdict",
+            "daily energy channel selection",
+            "canonical ci method",
+            "inconclusive",
         ):
             if phrase not in text:
                 failures.append(f"EXTERNAL_VALIDATION.md missing section: {phrase}")
+        for phrase in FORBIDDEN_OVERCLAIM_PHRASES:
+            if phrase.lower() in text:
+                failures.append(f"EXTERNAL_VALIDATION.md contains forbidden overclaim: {phrase}")
 
     out_path = config.DATA_PROCESSED / "alice_springs" / f"{EXTERNAL_VALIDATION_OUTPUT}.parquet"
     if result is not None and not out_path.exists():
@@ -86,8 +100,49 @@ def verify_external_validation() -> bool:
         table = result["table"]
         if table["clear_sky_pooled_rate_pct_per_day"].isna().any():
             failures.append("Comparison table contains null clear-sky rates")
+        if (table["ci_method"] != CANONICAL_CI_METHOD).any():
+            failures.append("Comparison table CI method not canonical for all rows")
         if "verdict" not in result or not result["verdict"]:
             failures.append("Verdict not reported")
+        if "inconclusive" not in result["verdict"].lower():
+            failures.append("Verdict must state INCONCLUSIVE primary conclusion")
+
+        can_row = table.loc[table["site_key"] == CANAKKALE_SITE_KEY].iloc[0]
+        if not (
+            abs(float(can_row["clear_sky_pooled_rate_pct_per_day"]) - CANONICAL_CANAKKALE_RATE)
+            < 1e-3
+        ):
+            failures.append("Canakkale rate does not match canonical -0.125 %/day")
+        can_lo = float(can_row["clear_sky_ci_lower"])
+        can_hi = float(can_row["clear_sky_ci_upper"])
+        if not (
+            abs(can_lo - CANONICAL_CANAKKALE_CI[0]) < 0.002
+            and abs(can_hi - CANONICAL_CANAKKALE_CI[1]) < 0.002
+        ):
+            failures.append(
+                f"Canakkale CI [{can_lo:.4f}, {can_hi:.4f}] != canonical "
+                f"{CANONICAL_CANAKKALE_CI}"
+            )
+
+        dkasc_rows = table.loc[table["site_key"] == "alice_springs"]
+        if len(dkasc_rows) < 4:
+            failures.append("Expected at least 4 DKASC array rows in comparison table")
+
+        sensitivity = result.get("sensitivity")
+        if sensitivity is None or sensitivity.empty:
+            failures.append("Cleaning sensitivity table missing")
+        elif set(sensitivity["preset"]) != set(config.INFERRED_CLEANING_PRESETS):
+            failures.append("Cleaning sensitivity missing preset rows")
+
+        robustness = read_processed(ROBUSTNESS_OUTPUT_NAME, site_key=CANAKKALE_SITE_KEY)
+        verdict_row = robustness.loc[robustness["record_type"] == "p4_verdict"].iloc[0]
+        if not np.isclose(
+            float(verdict_row["recommended_rate_pct_per_day"]),
+            CANONICAL_CANAKKALE_RATE,
+            rtol=1e-4,
+            atol=1e-4,
+        ):
+            failures.append("Canakkale p4_verdict rate changed")
 
     if failures:
         LOGGER.error("VERIFIER FAIL")
@@ -98,7 +153,7 @@ def verify_external_validation() -> bool:
     LOGGER.info("VERIFIER PASS")
     LOGGER.info("- Canakkale master hash unchanged: %s", hash_after[:16])
     if result is not None:
-        LOGGER.info("- Verdict: %s", result["verdict"][:160])
+        LOGGER.info("- Verdict: %s", result["verdict"][:200])
     return True
 
 

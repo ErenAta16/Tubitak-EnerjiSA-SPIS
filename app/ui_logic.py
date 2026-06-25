@@ -175,7 +175,12 @@ def load_dashboard_snapshot(site_key: str) -> DashboardSnapshot:
             master=master,
         )
 
-    alice_row = comparison.loc[comparison["site_key"] == ALICE_SPRINGS_SITE_KEY].iloc[0]
+    alice_rows = comparison.loc[comparison["site_key"] == ALICE_SPRINGS_SITE_KEY]
+    if "array_number" in alice_rows.columns:
+        primary = alice_rows.loc[alice_rows["array_number"] == "13"]
+        alice_row = primary.iloc[0] if not primary.empty else alice_rows.iloc[0]
+    else:
+        alice_row = alice_rows.iloc[0]
     rate_band = SoilingRateBand(
         point=abs(float(alice_row["clear_sky_pooled_rate_pct_per_day"])) / 100.0,
         low=abs(float(alice_row["clear_sky_ci_lower"])) / 100.0,

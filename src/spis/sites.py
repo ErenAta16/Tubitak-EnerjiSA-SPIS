@@ -63,7 +63,7 @@ def _canakkale_site() -> SiteConfig:
 def _alice_springs_site() -> SiteConfig:
     return SiteConfig(
         key="alice_springs",
-        name="DKASC Alice Springs (array 32)",
+        name="DKASC Alice Springs (fixed-tilt validation arrays)",
         lat=-23.762,
         lon=133.874,
         raw_data_dir=config.DATA_EXTERNAL / "dkasc",
@@ -72,7 +72,7 @@ def _alice_springs_site() -> SiteConfig:
         operational_data_available=True,
         coordinates_provisional=False,
         coordinates_note=(
-            "DKASC public research array; Canadian Solar 5.3 kW poly-Si fixed tilt. "
+            "DKASC public research arrays (fixed-tilt silicon, ~5 kW each). "
             "Washing events inferred from rainfall and PI step-changes (no wash log)."
         ),
         analysis_start_date=config.IRRADIANCE_START_DATE,
