@@ -33,9 +33,14 @@ Median post-wash recovery: **9.64 %** across segments.
 
 ## Pollution test (honest verdict)
 
-Daily HAC regression on trend-removed PI residuals (n~557):
-**not supported at daily resolution (n~750)**.
-PM10 HAC p = 0.727. Segment-level correlations (n=7)
+Daily HAC regression on trend-removed PI residuals (P3.5 spec: accumulated since
+last wash). CAMS accumulated n~557; ground PM10 accumulated paired days
+422:
+**not supported at daily resolution (confirmed with in-situ PM10)**.
+CAMS PM10 accumulated HAC p = 0.727; ground PM10
+accumulated HAC p = 0.928 (Canakkale Merkez
+UHKIA, urban proxy ~40-60 km from plant). Daily raw ground PM10 is reported in
+SOILING_ROBUSTNESS.md as a sensitivity check only. Segment-level correlations (n=7)
 and RF permutation ranks are **weak, non-confirmatory** signals only.
 
 The Random Forest test R2 is **-0.7842** (negative). Permutation
@@ -80,7 +85,8 @@ provide a strong predictive layer; the physical soiling trend model suffices.
 - **soiling_timeline_slopes**: PI timeline with wash lines and segment slopes
 - **soiling_rate_by_segment**: Per-segment soiling rate with CIs by season
 - **soiling_recovery_by_wash**: Washing recovery per event
-- **robustness_residual_vs_pm10**: Daily PI residual vs accumulated PM10 (null HAC result)
+- **robustness_residual_vs_pm10**: Daily PI residual vs accumulated CAMS PM10
+- **robustness_residual_vs_ground_pm10**: Daily PI residual vs accumulated ground PM10
 - **robustness_residual_vs_dust**: Daily PI residual vs accumulated dust
 - **robustness_rain_recovery**: Rain-event PI recovery distribution
 - **optimize_cost_vs_interval**: Total cost vs wash interval at real 2023 PTF central case

@@ -20,6 +20,7 @@ import statsmodels.api as sm
 
 from spis import config
 from spis.data_sources.nasa_power import fetch_nasa_power_daily
+from spis.data_sources.national_aq import fetch_national_aq_daily
 from spis.io import read_processed, write_processed
 from spis.soiling import (
     MASTER_INPUT_NAME,
@@ -138,6 +139,97 @@ def build_daily_residual_frame(master: pd.DataFrame, segments: pd.DataFrame) -> 
     return frame
 
 
+def _pollution_result_row(
+    record_type: str,
+    pollutant: str,
+    x_col: str,
+    data_source: str,
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    coef = result["coefficients"].get(x_col, {})
+    return {
+        "record_type": record_type,
+        "segment_id": pd.NA,
+        "pollutant": pollutant,
+        "data_source": data_source,
+        "x_variable": x_col,
+        "n_obs": result["n"],
+        "r2": result["r2"],
+        "partial_r2": coef.get("partial_r2", result.get("partial_r2")),
+        "coef": coef.get("coef"),
+        "hac_ci_lower": coef.get("hac_ci_lower"),
+        "hac_ci_upper": coef.get("hac_ci_upper"),
+        "p_value": coef.get("p_value"),
+        "hac_se_wider_than_naive": result.get("hac_se_wider_than_naive"),
+    }
+
+
+def load_canakkale_ground_pollution() -> pd.DataFrame:
+    """Load cached national AQ daily PM for Canakkale Merkez UHKIA (no imputation)."""
+    ground, _ = fetch_national_aq_daily(site_key="canakkale", force_refresh=False)
+    frame = ground[["date", "pm10", "pm2_5", "station_code", "station_name"]].copy()
+    frame = frame.sort_values("date").reset_index(drop=True)
+    LOGGER.info(
+        "Ground AQ Canakkale %s: %s calendar rows, PM10 observed %s, PM2.5 observed %s",
+        frame["station_code"].iloc[0],
+        len(frame),
+        int(frame["pm10"].notna().sum()),
+        int(frame["pm2_5"].notna().sum()),
+    )
+    return frame
+
+
+def attach_ground_pollution(
+    daily: pd.DataFrame,
+    ground: pd.DataFrame,
+) -> tuple[pd.DataFrame, dict[str, int]]:
+    """Join in-situ PM onto the daily residual frame; accumulate within each segment."""
+    merged = daily.merge(
+        ground.rename(
+            columns={
+                "pm10": "ground_pm10",
+                "pm2_5": "ground_pm2_5",
+            }
+        )[["date", "ground_pm10", "ground_pm2_5", "station_code", "station_name"]],
+        on="date",
+        how="left",
+    )
+    merged["ground_pm10_accumulated"] = np.nan
+    merged["ground_pm2_5_accumulated"] = np.nan
+    for _, group in merged.groupby("segment_id", sort=False):
+        idx = group.index
+        for raw_col, acc_col in (
+            ("ground_pm10", "ground_pm10_accumulated"),
+            ("ground_pm2_5", "ground_pm2_5_accumulated"),
+        ):
+            observed = merged.loc[idx, raw_col].notna()
+            if observed.any():
+                merged.loc[idx[observed], acc_col] = (
+                    merged.loc[idx[observed], raw_col].cumsum().to_numpy()
+                )
+
+    paired = {
+        "ground_pm10_daily_pairs": int(
+            merged.loc[merged["ground_pm10"].notna(), "pi_residual"].notna().sum()
+        ),
+        "ground_pm10_accumulated_pairs": int(
+            merged.loc[
+                merged["ground_pm10_accumulated"].notna(), "pi_residual"
+            ].notna().sum()
+        ),
+        "ground_pm2_5_daily_pairs": int(
+            merged.loc[merged["ground_pm2_5"].notna(), "pi_residual"].notna().sum()
+        ),
+        "ground_pm2_5_accumulated_pairs": int(
+            merged.loc[
+                merged["ground_pm2_5_accumulated"].notna(), "pi_residual"
+            ].notna().sum()
+        ),
+    }
+    LOGGER.info("Ground pollution paired-day counts: %s", paired)
+    return merged, paired
+
+
 def _partial_r2(full: sm.regression.linear_model.RegressionResultsWrapper, reduced) -> float:
     return float(full.rsquared - reduced.rsquared)
 
@@ -194,54 +286,48 @@ def hac_regression(
 
 
 def pollution_daily_tests(frame: pd.DataFrame) -> pd.DataFrame:
-    """Run daily-level pollution regressions on PI residuals."""
-    pollutants = {
+    """Run daily-level pollution regressions on PI residuals (CAMS + in-situ)."""
+    rows: list[dict[str, Any]] = []
+
+    cams_specs = {
         "pm10": "pm10_accumulated",
         "dust": "dust_accumulated",
         "aod": "aerosol_optical_depth_accumulated",
     }
-    rows: list[dict[str, Any]] = []
-
-    for name, col in pollutants.items():
+    for name, col in cams_specs.items():
         result = hac_regression(frame, "pi_residual", [col])
-        coef = result["coefficients"].get(col, {})
         rows.append(
-            {
-                "record_type": f"pollution_{name}",
-                "segment_id": pd.NA,
-                "pollutant": name,
-                "n_obs": result["n"],
-                "r2": result["r2"],
-                "partial_r2": coef.get("partial_r2", result.get("partial_r2")),
-                "coef": coef.get("coef"),
-                "hac_ci_lower": coef.get("hac_ci_lower"),
-                "hac_ci_upper": coef.get("hac_ci_upper"),
-                "p_value": coef.get("p_value"),
-                "hac_se_wider_than_naive": result.get("hac_se_wider_than_naive"),
-            }
+            _pollution_result_row(f"pollution_{name}", name, col, "cams", result)
         )
 
-    combined = hac_regression(
-        frame,
-        "pi_residual",
-        list(pollutants.values()),
-    )
-    for name, col in pollutants.items():
+    combined = hac_regression(frame, "pi_residual", list(cams_specs.values()))
+    for name, col in cams_specs.items():
         coef = combined["coefficients"].get(col, {})
         rows.append(
             {
-                "record_type": "pollution_combined",
-                "segment_id": pd.NA,
-                "pollutant": name,
-                "n_obs": combined["n"],
-                "r2": combined["r2"],
+                **_pollution_result_row(
+                    "pollution_combined", name, col, "cams", combined
+                ),
                 "partial_r2": coef.get("partial_r2"),
                 "coef": coef.get("coef"),
                 "hac_ci_lower": coef.get("hac_ci_lower"),
                 "hac_ci_upper": coef.get("hac_ci_upper"),
                 "p_value": coef.get("p_value"),
-                "hac_se_wider_than_naive": combined.get("hac_se_wider_than_naive"),
             }
+        )
+
+    ground_specs = (
+        ("pollution_ground_pm10_accumulated", "ground_pm10", "ground_pm10_accumulated"),
+        ("pollution_ground_pm10_daily", "ground_pm10", "ground_pm10"),
+        ("pollution_ground_pm2_5_accumulated", "ground_pm2_5", "ground_pm2_5_accumulated"),
+        ("pollution_ground_pm2_5_daily", "ground_pm2_5", "ground_pm2_5"),
+    )
+    for record_type, pollutant, x_col in ground_specs:
+        if x_col not in frame.columns:
+            continue
+        result = hac_regression(frame, "pi_residual", [x_col])
+        rows.append(
+            _pollution_result_row(record_type, pollutant, x_col, "ground_uhki", result)
         )
 
     return pd.DataFrame(rows)
@@ -341,6 +427,7 @@ def p4_verdict(
     pollution: pd.DataFrame,
     rain_stats: dict[str, Any],
     rain_vs_wash: dict[str, float],
+    ground_pairs: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Summarise robustness for P4 and the written report."""
     valid_clear = segment_compare.dropna(subset=["clear_rate_pct_per_day"])
@@ -349,17 +436,57 @@ def p4_verdict(
     clear_pooled = float(np.average(rates, weights=weights)) if len(valid_clear) else float("nan")
 
     pm10 = pollution.loc[pollution["record_type"] == "pollution_pm10"].iloc[0]
-    pollution_supported = (
-        pm10["p_value"] < 0.05 and pm10["coef"] is not None and pm10["coef"] < 0
-        if pd.notna(pm10["p_value"])
-        else False
-    )
-    if pollution_supported:
+    ground_acc = pollution.loc[
+        pollution["record_type"] == "pollution_ground_pm10_accumulated"
+    ]
+    ground_pm10 = ground_acc.iloc[0] if not ground_acc.empty else None
+
+    def _pollution_supported(row: pd.Series) -> bool:
+        return bool(
+            pd.notna(row["p_value"])
+            and row["p_value"] < 0.05
+            and row["coef"] is not None
+            and row["coef"] < 0
+        )
+
+    cams_supported = _pollution_supported(pm10)
+    ground_supported = _pollution_supported(ground_pm10) if ground_pm10 is not None else False
+
+    if ground_pm10 is not None:
+        ground_daily = pollution.loc[
+            pollution["record_type"] == "pollution_ground_pm10_daily"
+        ]
+        ground_daily_row = ground_daily.iloc[0] if not ground_daily.empty else None
+        daily_significant = (
+            ground_daily_row is not None and _pollution_supported(ground_daily_row)
+        )
+
+        if ground_supported:
+            pollution_verdict = "partially supported (in-situ PM10 accumulated)"
+            insitu_note = (
+                f"Ground PM10 accumulated HAC coef {ground_pm10['coef']:.2e}, "
+                f"partial R2 {ground_pm10['partial_r2']:.4f}"
+            )
+        elif pd.notna(ground_pm10["p_value"]) and ground_pm10["p_value"] >= 0.05:
+            pollution_verdict = "not supported at daily resolution (confirmed with in-situ PM10)"
+            insitu_note = "CAMS attenuation concern resolved: ground PM10 accumulated also null"
+            if daily_significant and ground_daily_row is not None:
+                insitu_note += (
+                    f". Sensitivity: daily raw ground PM10 HAC p="
+                    f"{ground_daily_row['p_value']:.3f} (not the P3.5 accumulated spec)"
+                )
+        else:
+            pollution_verdict = "inconclusive (in-situ PM10)"
+            insitu_note = "Ground PM10 regression inconclusive"
+    elif cams_supported:
         pollution_verdict = "partially supported"
+        insitu_note = "In-situ PM10 unavailable; CAMS-only verdict"
     elif pd.notna(pm10["p_value"]) and pm10["p_value"] >= 0.05:
         pollution_verdict = "not supported at daily resolution (n~750)"
+        insitu_note = "In-situ PM10 unavailable; CAMS-only verdict"
     else:
         pollution_verdict = "inconclusive"
+        insitu_note = "Pollution regressions inconclusive"
 
     ci_width = (
         float(valid_clear["clear_ci_upper"].mean() - valid_clear["clear_ci_lower"].mean())
@@ -372,25 +499,41 @@ def p4_verdict(
         and valid_clear["clear_rate_pct_per_day"].median() < 0
     )
 
-    return {
+    verdict: dict[str, Any] = {
         "record_type": "p4_verdict",
         "robust_enough_for_scheduling": bool(robust_enough),
         "recommended_rate_pct_per_day": clear_pooled,
         "recommended_uncertainty_half_width": ci_width / 2,
         "rate_basis": "clear_sky_pooled_weighted_by_n_fit",
         "pollution_verdict": pollution_verdict,
+        "insitu_pollution_note": insitu_note,
         "pm10_coef": pm10.get("coef"),
         "pm10_hac_ci_lower": pm10.get("hac_ci_lower"),
         "pm10_hac_ci_upper": pm10.get("hac_ci_upper"),
+        "pm10_p_value": pm10.get("p_value"),
         "rain_mean_recovery": rain_stats.get("mean_recovery"),
         "rain_share_of_cleaning": rain_vs_wash.get("rain_share"),
         "report_framing": (
             "Frame soiling as a robust seasonal loss rate corrected for clear days, "
-            "with rain as a parallel natural-cleaning pathway. Do not claim CAMS "
+            "with rain as a parallel natural-cleaning pathway. Do not claim pollution "
             "causality unless daily HAC coefficients are significant; emphasise "
             "irradiance-sensor co-soiling as an upward bias bound on true loss."
         ),
     }
+    if ground_pm10 is not None:
+        verdict.update(
+            {
+                "ground_pm10_coef": ground_pm10.get("coef"),
+                "ground_pm10_hac_ci_lower": ground_pm10.get("hac_ci_lower"),
+                "ground_pm10_hac_ci_upper": ground_pm10.get("hac_ci_upper"),
+                "ground_pm10_p_value": ground_pm10.get("p_value"),
+                "ground_pm10_partial_r2": ground_pm10.get("partial_r2"),
+                "ground_pm10_n_obs": ground_pm10.get("n_obs"),
+            }
+        )
+    if ground_pairs:
+        verdict.update(ground_pairs)
+    return verdict
 
 
 def _save_figure(name: str, fig: plt.Figure, plot_frame: pd.DataFrame) -> None:
@@ -441,6 +584,31 @@ def plot_pollution_daily(frame: pd.DataFrame, pollutant: str = "pm10") -> None:
     _save_figure(f"robustness_residual_vs_{pollutant}", fig, data.reset_index(drop=True))
 
 
+def plot_ground_pollution_daily(
+    frame: pd.DataFrame,
+    x_col: str = "ground_pm10_accumulated",
+    title_pollutant: str = "ground PM10",
+) -> None:
+    """Daily PI residual vs in-situ accumulated PM with HAC fit line."""
+    data = frame[[x_col, "pi_residual"]].dropna()
+    result = hac_regression(frame, "pi_residual", [x_col])
+    coef = result["coefficients"][x_col]
+    x_line = np.linspace(data[x_col].min(), data[x_col].max(), 50)
+    y_line = coef["coef"] * x_line + float(
+        data["pi_residual"].mean() - coef["coef"] * data[x_col].mean()
+    )
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+    ax.scatter(data[x_col], data["pi_residual"], s=8, alpha=0.4)
+    ax.plot(x_line, y_line, color="tab:red", label="HAC OLS fit")
+    ax.set_xlabel(f"Accumulated {title_pollutant} since wash (ug/m3-days)")
+    ax.set_ylabel("PI residual (temp corrected)")
+    ax.set_title(f"Daily residual vs accumulated {title_pollutant} (n={len(data)})")
+    ax.legend()
+    fig.tight_layout()
+    _save_figure("robustness_residual_vs_ground_pm10", fig, data.reset_index(drop=True))
+
+
 def plot_rain_recovery(recoveries: list[float]) -> None:
     """Distribution of rain-attributable PI recovery."""
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -462,10 +630,12 @@ def run_robustness_analysis() -> dict[str, Any]:
 
     segment_compare = compare_clear_sky_slopes(master, segments)
     daily = build_daily_residual_frame(master, segments)
+    ground = load_canakkale_ground_pollution()
+    daily, ground_pairs = attach_ground_pollution(daily, ground)
     pollution = pollution_daily_tests(daily)
     rain_stats = quantify_rain_recovery(master)
     rain_vs_wash = compare_rain_vs_wash_cleaning(rain_stats, segments)
-    verdict = p4_verdict(segment_compare, pollution, rain_stats, rain_vs_wash)
+    verdict = p4_verdict(segment_compare, pollution, rain_stats, rain_vs_wash, ground_pairs)
 
     rain_row = pd.DataFrame(
         [
@@ -488,6 +658,7 @@ def run_robustness_analysis() -> dict[str, Any]:
     plot_slope_comparison(segment_compare)
     plot_pollution_daily(daily, "pm10")
     plot_pollution_daily(daily, "dust")
+    plot_ground_pollution_daily(daily)
     if rain_stats.get("recoveries"):
         plot_rain_recovery(rain_stats["recoveries"])
 
@@ -500,6 +671,7 @@ def run_robustness_analysis() -> dict[str, Any]:
         "rain_vs_wash": rain_vs_wash,
         "verdict": verdict,
         "daily_n": len(daily),
+        "ground_pairs": ground_pairs,
     }
 
 
@@ -513,6 +685,16 @@ def write_robustness_report(
 ) -> None:
     """Write reports/SOILING_ROBUSTNESS.md."""
     pm10 = pollution.loc[pollution["record_type"] == "pollution_pm10"].iloc[0]
+    ground_acc = pollution.loc[
+        pollution["record_type"] == "pollution_ground_pm10_accumulated"
+    ]
+    ground_daily = pollution.loc[pollution["record_type"] == "pollution_ground_pm10_daily"]
+    ground_pm25_acc = pollution.loc[
+        pollution["record_type"] == "pollution_ground_pm2_5_accumulated"
+    ]
+    ground_pm25_daily = pollution.loc[
+        pollution["record_type"] == "pollution_ground_pm2_5_daily"
+    ]
     path = config.REPORTS / "SOILING_ROBUSTNESS.md"
     sensor_note = (
         "The SCADA irradiance column (ISINIM) is a plant-level daily integrated "
@@ -522,6 +704,50 @@ def write_robustness_report(
         "a lower bound on physical soiling. No sensor datasheet was found in the "
         "repository; this limitation is not corrected, only flagged."
     )
+    spatial_note = (
+        "In-situ PM10/PM2.5 comes from Canakkale Merkez UHKIA (TR170141), an urban "
+        "monitor ~40-60 km from the rural hybrid plant. Even ground readings are a "
+        "spatial proxy for field soiling; on-site reference dust instrumentation "
+        "(recommended future work for Enerjisa) would be the only direct measure."
+    )
+
+    def _pollution_line(row: pd.Series, label: str) -> str:
+        return (
+            f"| {label} | {int(row.get('n_obs', 0))} | {row.get('coef')} | "
+            f"[{row.get('hac_ci_lower')}, {row.get('hac_ci_upper')}] | "
+            f"{row.get('partial_r2')} | {row.get('p_value')} |"
+        )
+
+    comparison_lines = [
+        "| Source / variable | n | HAC coef | 95% CI | partial R2 | p |",
+        "|---|---:|---:|---|---:|---:|",
+        _pollution_line(pm10, "CAMS PM10 accumulated"),
+    ]
+    if not ground_acc.empty:
+        comparison_lines.append(
+            _pollution_line(ground_acc.iloc[0], "Ground PM10 accumulated")
+        )
+    if not ground_daily.empty:
+        comparison_lines.append(_pollution_line(ground_daily.iloc[0], "Ground PM10 daily"))
+    if not ground_pm25_acc.empty:
+        comparison_lines.append(
+            _pollution_line(ground_pm25_acc.iloc[0], "Ground PM2.5 accumulated")
+        )
+    if not ground_pm25_daily.empty:
+        comparison_lines.append(
+            _pollution_line(ground_pm25_daily.iloc[0], "Ground PM2.5 daily")
+        )
+
+    paired_note = ""
+    if verdict.get("ground_pm10_accumulated_pairs") is not None:
+        paired_note = (
+            f"Ground PM10 accumulated paired days: "
+            f"{int(verdict['ground_pm10_accumulated_pairs'])}; "
+            f"ground PM10 daily: {int(verdict.get('ground_pm10_daily_pairs', 0))}; "
+            f"ground PM2.5 accumulated: "
+            f"{int(verdict.get('ground_pm2_5_accumulated_pairs', 0))}."
+        )
+
     content = "\n".join(
         [
             "# P3.5 Soiling Robustness Verdict",
@@ -531,17 +757,24 @@ def write_robustness_report(
             f"Clearness index k = ALLSKY/CLRSKY from NASA POWER. "
             f"High-clearness days use k >= {config.CLEARNESS_INDEX_MIN}.",
             "",
-            "## Daily pollution test",
+            "## Daily pollution test (CAMS vs in-situ)",
             "",
             f"Clean-day input: {int(master['is_clean_observation'].sum())}; "
-            f"regression n after trend removal: {int(pm10.get('n_obs', 0))}.",
+            f"regression n after trend removal (CAMS PM10): "
+            f"{int(pm10.get('n_obs', 0))}.",
+            paired_note,
             "",
-            f"PM10 HAC coefficient: {pm10.get('coef')}, "
-            f"95% CI [{pm10.get('hac_ci_lower')}, {pm10.get('hac_ci_upper')}], "
-            f"p={pm10.get('p_value')}.",
+            "Side-by-side HAC regressions on trend-removed PI residuals:",
+            "",
+            *comparison_lines,
             "",
             f"Verdict: **{verdict['pollution_verdict']}**. "
+            f"{verdict.get('insitu_pollution_note', '')}. "
             "Association only; not proven causation.",
+            "",
+            "## Spatial proxy caveat (in-situ PM)",
+            "",
+            spatial_note,
             "",
             "## Rain natural washing",
             "",

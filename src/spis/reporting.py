@@ -21,7 +21,10 @@ from spis.optimize import (
 )
 from spis.robustness import (
     attach_clearness_index,
+    attach_ground_pollution,
     build_daily_residual_frame,
+    load_canakkale_ground_pollution,
+    plot_ground_pollution_daily,
     plot_pollution_daily,
     plot_rain_recovery,
     plot_slope_comparison,
@@ -45,7 +48,8 @@ FIGURE_MANIFEST: tuple[tuple[str, str], ...] = (
     ("soiling_timeline_slopes", "PI timeline with wash lines and segment slopes"),
     ("soiling_rate_by_segment", "Per-segment soiling rate with CIs by season"),
     ("soiling_recovery_by_wash", "Washing recovery per event"),
-    ("robustness_residual_vs_pm10", "Daily PI residual vs accumulated PM10 (null HAC result)"),
+    ("robustness_residual_vs_pm10", "Daily PI residual vs accumulated CAMS PM10"),
+    ("robustness_residual_vs_ground_pm10", "Daily PI residual vs accumulated ground PM10"),
     ("robustness_residual_vs_dust", "Daily PI residual vs accumulated dust"),
     ("robustness_rain_recovery", "Rain-event PI recovery distribution"),
     ("optimize_cost_vs_interval", "Total cost vs wash interval at real 2023 PTF central case"),
@@ -96,6 +100,19 @@ def collect_headline_metrics() -> pd.DataFrame:
         (ml["record_type"] == "test_metrics") & (ml["model_name"] == "days_since_wash_linear")
     ].iloc[0]
     pm10 = robustness.loc[robustness["record_type"] == "pollution_pm10"].iloc[0]
+    ground_pm10 = robustness.loc[
+        robustness["record_type"] == "pollution_ground_pm10_accumulated"
+    ]
+    ground_p = (
+        f"{ground_pm10.iloc[0]['p_value']:.3f}"
+        if not ground_pm10.empty and pd.notna(ground_pm10.iloc[0]["p_value"])
+        else "n/a"
+    )
+    ground_pairs = (
+        str(int(p4.get("ground_pm10_accumulated_pairs", 0)))
+        if pd.notna(p4.get("ground_pm10_accumulated_pairs"))
+        else "n/a"
+    )
     recovery_median = float(segments["recovery_pct"].median())
 
     rate = f"{p4['recommended_rate_pct_per_day']:.4f}"
@@ -110,9 +127,21 @@ def collect_headline_metrics() -> pd.DataFrame:
             "pollution_daily_hac_verdict",
             str(p4["pollution_verdict"]),
             "text",
-            "P3.5 n~557 regression",
+            "P3.5/P11 in-situ definitive test",
         ),
-        ("pollution_pm10_hac_p_value", f"{pm10['p_value']:.3f}", "", "P3.5 daily HAC"),
+        ("pollution_pm10_hac_p_value", f"{pm10['p_value']:.3f}", "", "CAMS accumulated"),
+        (
+            "pollution_ground_pm10_hac_p_value",
+            ground_p,
+            "",
+            "Ground PM10 accumulated (Merkez UHKIA)",
+        ),
+        (
+            "ground_pm10_accumulated_pairs",
+            ground_pairs,
+            "days",
+            "Clean days with observed ground PM10",
+        ),
         (
             "optimal_wash_interval_T_star",
             f"{central['t_star_days']:.0f}",
@@ -195,7 +224,10 @@ def regenerate_figures() -> None:
     plot_slope_comparison(seg_cmp)
     master_clr = attach_clearness_index(master)
     daily = build_daily_residual_frame(master_clr, segments)
+    ground = load_canakkale_ground_pollution()
+    daily, _ = attach_ground_pollution(daily, ground)
     plot_pollution_daily(daily, "pm10")
+    plot_ground_pollution_daily(daily)
     plot_pollution_daily(daily, "dust")
     rain_stats = quantify_rain_recovery(master_clr)
     if rain_stats["recoveries"]:
@@ -274,9 +306,14 @@ Median post-wash recovery: **{m['median_wash_recovery_pct'].value} %** across se
 
 ## Pollution test (honest verdict)
 
-Daily HAC regression on trend-removed PI residuals (n~557):
+Daily HAC regression on trend-removed PI residuals (P3.5 spec: accumulated since
+last wash). CAMS accumulated n~557; ground PM10 accumulated paired days
+{m['ground_pm10_accumulated_pairs'].value}:
 **{m['pollution_daily_hac_verdict'].value}**.
-PM10 HAC p = {m['pollution_pm10_hac_p_value'].value}. Segment-level correlations (n=7)
+CAMS PM10 accumulated HAC p = {m['pollution_pm10_hac_p_value'].value}; ground PM10
+accumulated HAC p = {m['pollution_ground_pm10_hac_p_value'].value} (Canakkale Merkez
+UHKIA, urban proxy ~40-60 km from plant). Daily raw ground PM10 is reported in
+SOILING_ROBUSTNESS.md as a sensitivity check only. Segment-level correlations (n=7)
 and RF permutation ranks are **weak, non-confirmatory** signals only.
 
 The Random Forest test R2 is **{m['rf_test_r2'].value}** (negative). Permutation

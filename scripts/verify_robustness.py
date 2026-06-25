@@ -13,8 +13,10 @@ from spis import config
 from spis.io import read_processed
 from spis.robustness import (
     ROBUSTNESS_OUTPUT_NAME,
+    attach_ground_pollution,
     build_daily_residual_frame,
     hac_regression,
+    load_canakkale_ground_pollution,
     run_robustness_analysis,
 )
 
@@ -46,6 +48,8 @@ def verify_robustness() -> bool:
         failures.append("All headline metrics are null")
 
     daily = build_daily_residual_frame(master, segments)
+    ground = load_canakkale_ground_pollution()
+    daily, paired = attach_ground_pollution(daily, ground)
     if daily["pi_residual"].isna().any():
         failures.append("PI residuals contain imputed nulls")
 
@@ -54,6 +58,31 @@ def verify_robustness() -> bool:
     coef = recomputed["coefficients"]["pm10_accumulated"]
     if abs(coef["coef"] - float(pm10["coef"])) > 1e-8:
         failures.append("Independent HAC recompute differs from stored PM10 coefficient")
+
+    ground_row = output.loc[
+        output["record_type"] == "pollution_ground_pm10_accumulated"
+    ]
+    if ground_row.empty:
+        failures.append("Ground PM10 accumulated regression row missing")
+    else:
+        ground_stored = ground_row.iloc[0]
+        ground_recomputed = hac_regression(
+            daily, "pi_residual", ["ground_pm10_accumulated"]
+        )
+        ground_coef = ground_recomputed["coefficients"]["ground_pm10_accumulated"]
+        if abs(ground_coef["coef"] - float(ground_stored["coef"])) > 1e-8:
+            failures.append(
+                "Independent HAC recompute differs from stored ground PM10 coefficient"
+            )
+        if not ground_recomputed.get("hac_se_wider_than_naive"):
+            failures.append(
+                "HAC SE sanity: ground PM10 expected wider SE than naive OLS"
+            )
+        if paired["ground_pm10_accumulated_pairs"] != int(ground_stored["n_obs"]):
+            failures.append(
+                "Ground PM10 paired-day count does not match regression n "
+                f"({paired['ground_pm10_accumulated_pairs']} vs {ground_stored['n_obs']})"
+            )
 
     if not recomputed.get("hac_se_wider_than_naive"):
         failures.append("HAC SE sanity: expected wider SE than naive OLS on daily residuals")
@@ -71,6 +100,12 @@ def verify_robustness() -> bool:
     LOGGER.info("VERIFIER PASS")
     LOGGER.info("- Reproducibility: identical soiling_robustness hash")
     LOGGER.info("- Independent PM10 HAC coef matches stored value")
+    if not ground_row.empty:
+        LOGGER.info("- Independent ground PM10 HAC coef matches stored value")
+        LOGGER.info(
+            "- Ground PM10 accumulated paired days: %s",
+            paired["ground_pm10_accumulated_pairs"],
+        )
     LOGGER.info("- HAC SE wider than naive SE")
     LOGGER.info("- Pollution verdict: %s", verdict["pollution_verdict"])
     return True

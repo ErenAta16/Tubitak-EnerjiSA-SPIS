@@ -2,8 +2,10 @@ metric,value,unit,source
 soiling_rate_pct_per_day,-0.1247,%/day,P3.5 clear-sky pooled
 soiling_rate_ci_half_width,0.0608,%/day,P3.5
 median_wash_recovery_pct,9.64,%,P3 segment median
-pollution_daily_hac_verdict,not supported at daily resolution (n~750),text,P3.5 n~557 regression
-pollution_pm10_hac_p_value,0.727,,P3.5 daily HAC
+pollution_daily_hac_verdict,not supported at daily resolution (confirmed with in-situ PM10),text,P3.5/P11 in-situ definitive test
+pollution_pm10_hac_p_value,0.727,,CAMS accumulated
+pollution_ground_pm10_hac_p_value,0.928,,Ground PM10 accumulated (Merkez UHKIA)
+ground_pm10_accumulated_pairs,422,days,Clean days with observed ground PM10
 optimal_wash_interval_T_star,99,days,P4 real_2023 PTF
 optimal_interval_ci,81-139,days,P4 rate CI
 T_star_legacy_assumed_2000,104,days,Previous assumed PTF
