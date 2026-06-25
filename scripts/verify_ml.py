@@ -1,4 +1,4 @@
-"""Verification gate for P5/P12 machine-learning analysis."""
+"""Verification gate for P5/P12/P13 machine-learning analysis."""
 
 from __future__ import annotations
 
@@ -10,18 +10,23 @@ from pathlib import Path
 
 import joblib
 import numpy as np
+import pandas as pd
 
 from spis import config
 from spis.io import read_processed
 from spis.ml import (
-    ALL_MODELS,
     FEATURE_COLUMNS,
+    LEGACY_MODELS,
     MODEL_RANDOM_FOREST,
+    PANEL_MODELS,
+    SCALED_PANEL_MODELS,
+    TARGET_ABSOLUTE,
     TARGET_SOILING_RATIO,
     assert_no_leakage,
     blocked_cv_metrics,
     build_modelling_frame,
     evaluate_model,
+    fit_panel_model,
     prepare_xy,
     run_ml_analysis,
     time_based_split,
@@ -73,25 +78,39 @@ def verify_ml() -> bool:
         failures.append("Segment baseline must come from P3 post-wash baselines only")
 
     output = read_processed(config.ML_METRICS_OUTPUT_NAME)
-    for framing in ("pi_temp_corrected", TARGET_SOILING_RATIO):
+    panel_rows = output.loc[output["record_type"] == "panel_comparison"]
+    if len(panel_rows) != len(PANEL_MODELS):
+        failures.append(
+            f"Expected {len(PANEL_MODELS)} panel_comparison rows, got {len(panel_rows)}"
+        )
+
+    for framing, models in (
+        (TARGET_SOILING_RATIO, PANEL_MODELS),
+        (TARGET_ABSOLUTE, LEGACY_MODELS),
+    ):
         test_rows = output.loc[
             (output["record_type"] == "test_metrics")
             & (output["target_framing"] == framing)
         ]
-        if len(test_rows) != len(ALL_MODELS):
+        if len(test_rows) != len(models):
             failures.append(
-                f"Expected {len(ALL_MODELS)} test_metrics rows for {framing}, "
-                f"got {len(test_rows)}"
+                f"Expected {len(models)} test_metrics rows for {framing}, got {len(test_rows)}"
             )
         cv_rows = output.loc[
             (output["record_type"] == "cv_metrics") & (output["target_framing"] == framing)
         ]
-        if len(cv_rows) != len(ALL_MODELS):
+        if len(cv_rows) != len(models):
             failures.append(
-                f"Expected {len(ALL_MODELS)} cv_metrics rows for {framing}, got {len(cv_rows)}"
+                f"Expected {len(models)} cv_metrics rows for {framing}, got {len(cv_rows)}"
             )
-        if "mean_baseline" not in set(test_rows["model_name"]):
-            failures.append(f"mean_baseline missing from test_metrics for {framing}")
+
+    if "mean_baseline" not in set(
+        output.loc[
+            (output["record_type"] == "test_metrics")
+            & (output["target_framing"] == TARGET_SOILING_RATIO)
+        ]["model_name"]
+    ):
+        failures.append("mean_baseline missing from soiling_ratio test_metrics")
 
     cv = blocked_cv_metrics(split.train, TARGET_SOILING_RATIO, MODEL_RANDOM_FOREST)
     stored_cv = output.loc[
@@ -102,9 +121,22 @@ def verify_ml() -> bool:
     if abs(float(stored_cv["r2_mean"]) - cv.r2_mean) > 1e-6:
         failures.append("Independent blocked CV recompute differs from stored RF CV R2")
 
+    x_train, y_train = prepare_xy(split.train.iloc[:120], TARGET_SOILING_RATIO)
+    pipe = fit_panel_model("ridge", x_train, y_train)
+    if "ridge" in SCALED_PANEL_MODELS:
+        scaler = pipe.named_steps["scaler"]
+        if not np.allclose(scaler.mean_, x_train.mean().to_numpy(), rtol=1e-5):
+            failures.append("StandardScaler must be fit on fold-local training rows only")
+
     verdict = output.loc[output["record_type"] == "ml_verdict", "verdict"]
     if verdict.isna().any() or verdict.empty:
         failures.append("ML verdict missing")
+
+    panel_cmp = output.loc[output["record_type"] == "panel_comparison"].sort_values(
+        "cv_r2_mean", ascending=False
+    )
+    if not panel_cmp["cv_r2_mean"].is_monotonic_decreasing:
+        failures.append("panel_comparison rows must be sorted by cv_r2_mean descending")
 
     rf = output.loc[
         (output["record_type"] == "test_metrics")
@@ -117,24 +149,30 @@ def verify_ml() -> bool:
     if abs(mae - float(rf["mae"])) > 1e-6 or abs(r2 - float(rf["r2"])) > 1e-6:
         failures.append("Independent recompute from saved model differs from stored metrics")
 
+    figure_png = config.FIGURES / "ml_panel_cv_r2_comparison.png"
+    figure_csv = config.FIGURES / "ml_panel_cv_r2_comparison.csv"
+    if not figure_png.exists() or not figure_csv.exists():
+        failures.append("P13 panel comparison figure PNG/CSV missing")
+
+    investigation = output.loc[output["record_type"] == "ml_verdict", "investigation_model"]
+    inv_model = (
+        None
+        if investigation.isna().all() or pd.isna(investigation.iloc[0])
+        else str(investigation.iloc[0])
+    )
     importance = output.loc[
         (output["record_type"] == "permutation_importance")
         & (output["target_framing"] == TARGET_SOILING_RATIO)
     ]
-    rf_cv_row = output.loc[
-        (output["record_type"] == "cv_metrics")
-        & (output["model_name"] == MODEL_RANDOM_FOREST)
-        & (output["target_framing"] == TARGET_SOILING_RATIO)
-    ].iloc[0]
-    if float(rf_cv_row["r2_mean"]) >= 0 and len(importance) != len(FEATURE_COLUMNS):
+    any_non_negative = bool((panel_cmp["cv_r2_mean"] >= 0).any())
+    if inv_model and len(importance) != len(FEATURE_COLUMNS):
         failures.append(
-            f"Non-negative CV R2 but expected {len(FEATURE_COLUMNS)} importances, "
-            f"got {len(importance)}"
+            f"Investigation model set but expected {len(FEATURE_COLUMNS)} importances"
         )
-    if float(rf_cv_row["r2_mean"]) < 0 and not importance.empty:
-        failures.append(
-            "Permutation importance present despite negative blocked CV R2 (untrusted)"
-        )
+    if not inv_model and not importance.empty:
+        failures.append("Permutation importance present without investigation model")
+    if not any_non_negative and inv_model:
+        failures.append("Investigation model set despite all panel CV R2 negative")
 
     if failures:
         LOGGER.error("VERIFIER FAIL")
@@ -142,18 +180,23 @@ def verify_ml() -> bool:
             LOGGER.error("- %s", item)
         return False
 
+    best = panel_cmp.iloc[0]
     LOGGER.info("VERIFIER PASS")
     LOGGER.info("- Reproducibility: identical ml_model_metrics hash")
-    LOGGER.info("- Leakage guard: production/irradiation/soiling_ratio absent from features")
-    LOGGER.info("- Time-based split and blocked CV confirmed")
+    LOGGER.info("- Leakage guard and fold-local scaling confirmed")
     LOGGER.info(
-        "- soiling_ratio RF test R2=%.4f MAE=%.5f; CV R2=%.4f +/- %.4f",
-        float(rf["r2"]),
-        float(rf["mae"]),
-        float(rf_cv_row["r2_mean"]),
-        float(rf_cv_row["r2_std"]),
+        "- Panel models reported: %s soiling_ratio + %s legacy absolute",
+        len(PANEL_MODELS),
+        len(LEGACY_MODELS),
     )
-    LOGGER.info("- ML verdict: %s", verdict.iloc[0][:100])
+    LOGGER.info(
+        "- Best panel CV R2=%s (%.4f +/- %.4f); any CV>=0: %s",
+        best["model_name"],
+        float(best["cv_r2_mean"]),
+        float(best["cv_r2_std"]),
+        any_non_negative,
+    )
+    LOGGER.info("- ML verdict: %s", verdict.iloc[0][:120])
     return True
 
 

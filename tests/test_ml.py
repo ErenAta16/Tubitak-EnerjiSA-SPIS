@@ -14,6 +14,7 @@ from spis.ml import (
     attach_soiling_ratio,
     blocked_cv_metrics,
     build_modelling_frame,
+    fit_panel_model,
     permutation_importance_with_ci,
     prepare_xy,
     time_based_split,
@@ -115,7 +116,23 @@ def test_blocked_cv_returns_all_models() -> None:
     assert cv.r2_std >= 0.0
 
 
-def test_permutation_importance_one_score_per_feature() -> None:
+def test_scaled_models_use_pipeline() -> None:
+    """Non-tree panel models must use a StandardScaler pipeline."""
+    rng = np.random.default_rng(config.RANDOM_STATE)
+    x = pd.DataFrame({col: rng.normal(size=60) for col in FEATURE_COLUMNS})
+    y = pd.Series(rng.normal(size=60))
+    pipe = fit_panel_model("ridge", x, y)
+    assert hasattr(pipe, "named_steps")
+    assert "scaler" in pipe.named_steps
+
+
+def test_panel_model_registry_covers_families() -> None:
+    """P13 panel includes baselines, linear, kernel, tree, boosting, and MLP."""
+    from spis.ml import PANEL_MODELS
+
+    assert len(PANEL_MODELS) == 15
+    assert "mlp" in PANEL_MODELS
+    assert "svr_rbf" in PANEL_MODELS
     """Permutation importance returns one row per feature."""
     rng = np.random.default_rng(config.RANDOM_STATE)
     x = pd.DataFrame({col: rng.normal(size=40) for col in FEATURE_COLUMNS})

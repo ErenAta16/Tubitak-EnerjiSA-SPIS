@@ -17,7 +17,10 @@
 | ml_absolute_pi_rf_test_r2 | -0.7842 |  | P5 legacy target (comparison) |
 | ml_soiling_ratio_rf_cv_r2 | -1.3525 +/- 2.1188 |  | P12 blocked TimeSeriesSplit |
 | ml_soiling_ratio_trend_test_r2 | -0.8942 |  | days_since_wash linear baseline |
-| ml_verdict | Random Forest modestly beats the trend baseline on the held-out window, but blocked CV R2 remains negative — treat ML ga | text | P12 soiling_ratio framing |
+| ml_panel_best_cv_r2 | -0.4396 +/- 0.5911 |  | P13 best: svr_rbf |
+| ml_panel_model_count | 15 | count | P13 algorithm panel |
+| ml_panel_any_cv_r2_non_negative | False | bool | P13 blocked TimeSeriesSplit |
+| ml_verdict | No algorithm in the 15-model panel achieves non-negative blocked CV R2 **and** beats the days_since_wash trend on held-o | text | P13 multi-family panel |
 | rf_test_mae | 10.7816 |  | P12 soiling_ratio RF held-out |
 | rf_test_r2 | -0.5585 |  | P12 soiling_ratio RF held-out |
 | baseline_days_since_wash_r2 | -0.8942 |  | P12 days_since_wash on soiling_ratio |

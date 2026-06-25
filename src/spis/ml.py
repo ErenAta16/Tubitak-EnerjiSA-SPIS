@@ -1,9 +1,9 @@
-"""P5/P12 machine learning corroboration with strict leakage control.
+"""P5/P12/P13 machine learning corroboration with strict leakage control.
 
 Production and irradiation are excluded from features because they define PI =
 production/irradiation. P12 reframes the target to within-segment soiling_ratio
-(100 * pi / post-wash segment baseline) so ML matches the physical soiling question
-and is not penalized by segment-level PI resets at each wash.
+(100 * pi / post-wash segment baseline). P13 compares a broad scikit-learn panel on
+that fair target to establish whether any algorithm family generalizes reliably.
 """
 
 from __future__ import annotations
@@ -17,11 +17,23 @@ import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestRegressor
+from sklearn.ensemble import (
+    AdaBoostRegressor,
+    ExtraTreesRegressor,
+    GradientBoostingRegressor,
+    HistGradientBoostingRegressor,
+    RandomForestRegressor,
+)
 from sklearn.inspection import partial_dependence, permutation_importance
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import ElasticNet, Lasso, LinearRegression, Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import TimeSeriesSplit
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.neural_network import MLPRegressor
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVR
+from sklearn.tree import DecisionTreeRegressor
 
 from spis import config
 from spis.io import read_processed, write_processed
@@ -64,14 +76,69 @@ POLLUTION_FEATURES: frozenset[str] = frozenset(
 
 MODEL_MEAN_BASELINE = "mean_baseline"
 MODEL_DAYS_SINCE_WASH = "days_since_wash_linear"
+MODEL_LINEAR = "linear_regression"
+MODEL_RIDGE = "ridge"
+MODEL_LASSO = "lasso"
+MODEL_ELASTIC_NET = "elastic_net"
+MODEL_KNN = "knn"
+MODEL_SVR_RBF = "svr_rbf"
+MODEL_DECISION_TREE = "decision_tree"
 MODEL_RANDOM_FOREST = "random_forest"
+MODEL_EXTRA_TREES = "extra_trees"
+MODEL_GRADIENT_BOOSTING = "gradient_boosting"
 MODEL_HIST_GB = "hist_gradient_boosting"
+MODEL_ADA_BOOST = "ada_boost"
+MODEL_MLP = "mlp"
 
-ALL_MODELS: tuple[str, ...] = (
+PANEL_MODELS: tuple[str, ...] = (
+    MODEL_MEAN_BASELINE,
+    MODEL_DAYS_SINCE_WASH,
+    MODEL_LINEAR,
+    MODEL_RIDGE,
+    MODEL_LASSO,
+    MODEL_ELASTIC_NET,
+    MODEL_KNN,
+    MODEL_SVR_RBF,
+    MODEL_DECISION_TREE,
+    MODEL_RANDOM_FOREST,
+    MODEL_EXTRA_TREES,
+    MODEL_GRADIENT_BOOSTING,
+    MODEL_HIST_GB,
+    MODEL_ADA_BOOST,
+    MODEL_MLP,
+)
+
+# Legacy four-model subset retained for absolute-PI comparison (P12).
+LEGACY_MODELS: tuple[str, ...] = (
     MODEL_MEAN_BASELINE,
     MODEL_DAYS_SINCE_WASH,
     MODEL_RANDOM_FOREST,
     MODEL_HIST_GB,
+)
+
+ALL_MODELS = PANEL_MODELS
+
+TREE_PANEL_MODELS: frozenset[str] = frozenset(
+    {
+        MODEL_DECISION_TREE,
+        MODEL_RANDOM_FOREST,
+        MODEL_EXTRA_TREES,
+        MODEL_GRADIENT_BOOSTING,
+        MODEL_HIST_GB,
+        MODEL_ADA_BOOST,
+    }
+)
+
+SCALED_PANEL_MODELS: frozenset[str] = frozenset(
+    {
+        MODEL_LINEAR,
+        MODEL_RIDGE,
+        MODEL_LASSO,
+        MODEL_ELASTIC_NET,
+        MODEL_KNN,
+        MODEL_SVR_RBF,
+        MODEL_MLP,
+    }
 )
 
 
@@ -234,21 +301,62 @@ def evaluate_model(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, float
     return mae, rmse, r2
 
 
-def _fixed_random_forest() -> RandomForestRegressor:
-    return RandomForestRegressor(
-        n_estimators=100,
-        max_depth=5,
-        min_samples_leaf=5,
-        random_state=config.RANDOM_STATE,
-    )
+def _create_estimator(model_name: str) -> Any:
+    """Return an unfitted estimator with fixed hyperparameters (no test tuning)."""
+    rs = config.RANDOM_STATE
+    factories: dict[str, Any] = {
+        MODEL_LINEAR: LinearRegression,
+        MODEL_RIDGE: lambda: Ridge(alpha=1.0),
+        MODEL_LASSO: lambda: Lasso(alpha=0.01, max_iter=5000, random_state=rs),
+        MODEL_ELASTIC_NET: lambda: ElasticNet(
+            alpha=0.01, l1_ratio=0.5, max_iter=5000, random_state=rs
+        ),
+        MODEL_KNN: lambda: KNeighborsRegressor(n_neighbors=5),
+        MODEL_SVR_RBF: lambda: SVR(kernel="rbf", C=1.0, gamma="scale"),
+        MODEL_DECISION_TREE: lambda: DecisionTreeRegressor(max_depth=5, random_state=rs),
+        MODEL_RANDOM_FOREST: lambda: RandomForestRegressor(
+            n_estimators=100, max_depth=5, min_samples_leaf=5, random_state=rs
+        ),
+        MODEL_EXTRA_TREES: lambda: ExtraTreesRegressor(
+            n_estimators=100, max_depth=5, min_samples_leaf=5, random_state=rs
+        ),
+        MODEL_GRADIENT_BOOSTING: lambda: GradientBoostingRegressor(
+            n_estimators=100, max_depth=3, learning_rate=0.1, random_state=rs
+        ),
+        MODEL_HIST_GB: lambda: HistGradientBoostingRegressor(
+            max_depth=5, max_iter=100, random_state=rs
+        ),
+        MODEL_ADA_BOOST: lambda: AdaBoostRegressor(
+            estimator=DecisionTreeRegressor(max_depth=3, random_state=rs),
+            n_estimators=100,
+            random_state=rs,
+        ),
+        MODEL_MLP: lambda: MLPRegressor(
+            hidden_layer_sizes=(32, 16),
+            max_iter=500,
+            early_stopping=True,
+            random_state=rs,
+        ),
+    }
+    if model_name not in factories:
+        raise ValueError(f"No estimator factory for {model_name!r}")
+    return factories[model_name]()
 
 
-def _fixed_hist_gradient_boosting() -> HistGradientBoostingRegressor:
-    return HistGradientBoostingRegressor(
-        max_depth=5,
-        max_iter=100,
-        random_state=config.RANDOM_STATE,
-    )
+def fit_panel_model(model_name: str, x_train: pd.DataFrame, y_train: pd.Series) -> Any:
+    """Fit a panel model; StandardScaler is fit on x_train only (fold-local in CV)."""
+    if model_name in SCALED_PANEL_MODELS:
+        pipe = Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                ("model", _create_estimator(model_name)),
+            ]
+        )
+        pipe.fit(x_train, y_train)
+        return pipe
+    estimator = _create_estimator(model_name)
+    estimator.fit(x_train, y_train)
+    return estimator
 
 
 def predict_mean_baseline(train: pd.DataFrame, test: pd.DataFrame, target_col: str) -> np.ndarray:
@@ -266,25 +374,13 @@ def fit_days_since_wash_linear(
     return model
 
 
-def fit_feature_model(model_name: str, x_train: pd.DataFrame, y_train: pd.Series) -> Any:
-    """Fit RF or HistGradientBoosting with fixed hyperparameters (no test tuning)."""
-    if model_name == MODEL_RANDOM_FOREST:
-        model = _fixed_random_forest()
-    elif model_name == MODEL_HIST_GB:
-        model = _fixed_hist_gradient_boosting()
-    else:
-        raise ValueError(f"Unsupported feature model: {model_name}")
-    model.fit(x_train, y_train)
-    return model
-
-
 def predict_model(
     model_name: str,
     train: pd.DataFrame,
     test: pd.DataFrame,
     target_col: str,
 ) -> np.ndarray:
-    """Generate predictions for one model on a test fold or held-out set."""
+    """Generate predictions for one panel model on a test fold or held-out set."""
     if model_name == MODEL_MEAN_BASELINE:
         return predict_mean_baseline(train, test, target_col)
     if model_name == MODEL_DAYS_SINCE_WASH:
@@ -292,8 +388,8 @@ def predict_model(
         return model.predict(test[["days_since_wash"]].astype(float))
     x_train, y_train = prepare_xy(train, target_col)
     x_test, _ = prepare_xy(test, target_col)
-    model = fit_feature_model(model_name, x_train, y_train)
-    return model.predict(x_test)
+    fitted = fit_panel_model(model_name, x_train, y_train)
+    return fitted.predict(x_test)
 
 
 def blocked_cv_metrics(
@@ -341,16 +437,17 @@ def blocked_cv_metrics(
 def evaluate_test_models(
     split: TimeSplit,
     target_col: str,
-) -> tuple[list[ModelMetrics], list[CvMetrics], RandomForestRegressor | None]:
-    """Run all models for one target framing; return test metrics and CV table."""
+    model_names: tuple[str, ...] = PANEL_MODELS,
+) -> tuple[list[ModelMetrics], list[CvMetrics], dict[str, Any]]:
+    """Run panel models for one target framing; return metrics and fitted models."""
     test_metrics: list[ModelMetrics] = []
     cv_metrics: list[CvMetrics] = []
+    fitted_models: dict[str, Any] = {}
     framing = (
         TARGET_SOILING_RATIO if target_col == TARGET_SOILING_RATIO else TARGET_ABSOLUTE
     )
-    rf_model: RandomForestRegressor | None = None
 
-    for model_name in ALL_MODELS:
+    for model_name in model_names:
         cv_metrics.append(blocked_cv_metrics(split.train, target_col, model_name))
         y_pred = predict_model(model_name, split.train, split.test, target_col)
         _, y_test = prepare_xy(split.test, target_col)
@@ -366,15 +463,15 @@ def evaluate_test_models(
                 n_test=len(split.test),
             )
         )
-        if model_name == MODEL_RANDOM_FOREST:
+        if model_name not in (MODEL_MEAN_BASELINE, MODEL_DAYS_SINCE_WASH):
             x_train, y_train = prepare_xy(split.train, target_col)
-            rf_model = fit_feature_model(MODEL_RANDOM_FOREST, x_train, y_train)
+            fitted_models[model_name] = fit_panel_model(model_name, x_train, y_train)
 
-    return test_metrics, cv_metrics, rf_model
+    return test_metrics, cv_metrics, fitted_models
 
 
 def permutation_importance_with_ci(
-    model: RandomForestRegressor,
+    model: Any,
     x_test: pd.DataFrame,
     y_test: pd.Series,
 ) -> pd.DataFrame:
@@ -412,26 +509,66 @@ def p35_soiling_rate_pct(segments: pd.DataFrame, robustness: pd.DataFrame | None
     return float(segments["soiling_rate_pct_per_day"].median())
 
 
-def ml_beats_trend_verdict(
-    rf_metrics: ModelMetrics,
-    trend_metrics: ModelMetrics,
-    rf_cv: CvMetrics,
-) -> str:
-    """Plain verdict on whether ML adds value over the simple soiling trend."""
-    if rf_metrics.r2 <= trend_metrics.r2 + 0.01 and rf_metrics.mae >= trend_metrics.mae * 0.99:
-        return (
-            "Random Forest does **not** meaningfully beat the days_since_wash linear "
-            "baseline on held-out test metrics. The simple physical trend model suffices."
+def build_panel_comparison(
+    test_metrics: list[ModelMetrics],
+    cv_metrics: list[CvMetrics],
+) -> pd.DataFrame:
+    """Merge test and blocked-CV metrics; sort by CV R2 descending."""
+    test_by = {item.model_name: item for item in test_metrics}
+    cv_by = {item.model_name: item for item in cv_metrics}
+    rows: list[dict[str, Any]] = []
+    for name in PANEL_MODELS:
+        test = test_by[name]
+        cv = cv_by[name]
+        rows.append(
+            {
+                "model_name": name,
+                "test_mae": test.mae,
+                "test_rmse": test.rmse,
+                "test_r2": test.r2,
+                "cv_r2_mean": cv.r2_mean,
+                "cv_r2_std": cv.r2_std,
+                "cv_mae_mean": cv.mae_mean,
+                "cv_mae_std": cv.mae_std,
+                "cv_r2_non_negative": bool(cv.r2_mean >= 0),
+            }
         )
-    if rf_cv.r2_mean < 0:
-        return (
-            "Random Forest modestly beats the trend baseline on the held-out window, "
-            "but blocked CV R2 remains negative — treat ML gains as fragile."
+    return pd.DataFrame(rows).sort_values("cv_r2_mean", ascending=False).reset_index(drop=True)
+
+
+def panel_verdict(comparison: pd.DataFrame) -> tuple[str, str | None]:
+    """Honest multi-family verdict; return investigation model if CV R2 >= 0 and beats trend."""
+    trend = comparison.loc[comparison["model_name"] == MODEL_DAYS_SINCE_WASH].iloc[0]
+    reliable = comparison[
+        (comparison["cv_r2_mean"] >= 0)
+        & (comparison["test_r2"] > trend["test_r2"] + 0.01)
+        & (comparison["test_mae"] < trend["test_mae"] * 0.99)
+    ]
+    if reliable.empty:
+        best = comparison.iloc[0]
+        non_neg = comparison.loc[comparison["cv_r2_non_negative"]]
+        non_neg_note = (
+            f" {len(non_neg)} model(s) touched CV R2 >= 0 ({', '.join(non_neg['model_name'])}),"
+            if not non_neg.empty
+            else " No model reaches CV R2 >= 0;"
         )
+        return (
+            "No algorithm in the "
+            f"{len(PANEL_MODELS)}-model panel achieves non-negative blocked CV R2 **and** "
+            f"beats the days_since_wash trend on held-out test.{non_neg_note} "
+            f"Best CV R2: **{best['model_name']}** ({best['cv_r2_mean']:.4f} +/- "
+            f"{best['cv_r2_std']:.4f}). The negative ML finding now holds across linear, "
+            "kernel, tree, boosting, and neural families — the simple physical trend "
+            "suffices.",
+            None,
+        )
+    winner = reliable.sort_values("cv_r2_mean", ascending=False).iloc[0]
     return (
-        "Random Forest beats the days_since_wash baseline on held-out R2/MAE with "
-        "non-negative blocked CV R2; weather/pollution features add modest explanatory "
-        "power beyond the linear trend."
+        f"**{winner['model_name']}** achieves non-negative blocked CV R2 "
+        f"({winner['cv_r2_mean']:.4f} +/- {winner['cv_r2_std']:.4f}) and beats the "
+        "days_since_wash trend on held-out test. Investigate with permutation "
+        "importance and partial dependence; this would change the ML conclusion.",
+        str(winner["model_name"]),
     )
 
 
@@ -478,108 +615,83 @@ def _metrics_row(model_name: str, metrics: ModelMetrics) -> str:
     )
 
 
+def _save_figure(name: str, fig: plt.Figure, plot_frame: pd.DataFrame) -> None:
+    config.FIGURES.mkdir(parents=True, exist_ok=True)
+    fig.savefig(config.FIGURES / f"{name}.png", dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    plot_frame.to_csv(config.FIGURES / f"{name}.csv", index=False)
+
+
 def write_ml_results_report(
-    absolute_test: list[ModelMetrics],
-    absolute_cv: list[CvMetrics],
-    ratio_test: list[ModelMetrics],
-    ratio_cv: list[CvMetrics],
-    ml_verdict: str,
+    comparison: pd.DataFrame,
+    panel_verdict_text: str,
+    absolute_rf_r2: float,
     importance: pd.DataFrame | None,
     pollution_note: str,
     split: TimeSplit,
-    importance_trusted: bool,
+    investigation_model: str | None,
 ) -> None:
-    """Write reports/ML_RESULTS.md with P12 reframed results and old-vs-new comparison."""
+    """Write reports/ML_RESULTS.md with P13 full algorithm panel."""
     path = config.REPORTS / "ML_RESULTS.md"
-    abs_by_name = {m.model_name: m for m in absolute_test}
-    ratio_by_name = {m.model_name: m for m in ratio_test}
-    abs_cv_by = {m.model_name: m for m in absolute_cv}
-    ratio_cv_by = {m.model_name: m for m in ratio_cv}
-
     lines = [
-        "# P5/P12 Machine Learning Results",
+        "# P5/P12/P13 Machine Learning Results",
         "",
-        "## Target reframing (P12)",
+        "## Target (P12 fair framing, unchanged in P13)",
         "",
-        "**Old (P5):** predict absolute `pi_temp_corrected`. PI resets at each wash, so",
-        "segment baseline shifts make this an unfair target (negative held-out R2).",
-        "",
-        "**New (P12):** predict `soiling_ratio = 100 * pi_temp_corrected / segment_baseline`,",
-        "where `segment_baseline` is the P3 median of the first post-wash clean days",
-        f"(`SOILING_BASELINE_CLEAN_DAYS={config.SOILING_BASELINE_CLEAN_DAYS}`). That",
-        "baseline is operationally known right after a wash; it uses only each segment's",
-        "own early post-wash days — not future PI — so this is realistic, not leakage.",
+        "Predict `soiling_ratio = 100 * pi_temp_corrected / segment_baseline`, where",
+        f"`segment_baseline` is the P3 median of the first {config.SOILING_BASELINE_CLEAN_DAYS} "
+        "post-wash clean days. Baseline is operationally known after a wash (not leakage).",
         "",
         "## Leakage control",
         "",
-        "Features are exogenous only; **production and irradiation are excluded**",
-        "because PI = production/irradiation would leak the target ratio.",
+        "Exogenous features only; **production, irradiation, and soiling_ratio are excluded**.",
+        "Non-tree models use `Pipeline(StandardScaler, model)` with scaling fit inside each "
+        "CV fold. Fixed hyperparameters; no test-set tuning.",
         "",
         f"Modelling frame: train={split.train.shape[0]}, test={split.test.shape[0]} "
-        f"(time split at {split.split_date.date()}, latest "
-        f"{split.test_fraction:.0%} held out). Pre-first-wash days excluded.",
+        f"(split {split.split_date.date()}, latest {split.test_fraction:.0%} held out).",
         "",
-        "## Blocked TimeSeriesSplit CV (train span only, mean +/- std)",
+        "## P13 algorithm panel (soiling_ratio, sorted by blocked CV R2)",
         "",
-        "| framing | model | MAE | RMSE | R2 |",
-        "|---|---|---:|---:|---:|",
+        "| rank | model | test MAE | test RMSE | test R2 | CV R2 (mean +/- std) | CV>=0 |",
+        "|---:|---|---:|---:|---:|---:|---|",
     ]
-    for framing_label, cv_map in (
-        ("absolute PI", abs_cv_by),
-        ("soiling_ratio", ratio_cv_by),
-    ):
-        for model_name in ALL_MODELS:
-            cv = cv_map[model_name]
-            lines.append(
-                f"| {framing_label} | {model_name} | {_format_cv_cell(cv, 'mae')} | "
-                f"{_format_cv_cell(cv, 'rmse')} | {_format_cv_cell(cv, 'r2')} |"
-            )
+    for rank, row in comparison.iterrows():
+        flag = "yes" if row["cv_r2_non_negative"] else "no"
+        lines.append(
+            f"| {rank + 1} | {row['model_name']} | {row['test_mae']:.5f} | "
+            f"{row['test_rmse']:.5f} | {row['test_r2']:.4f} | "
+            f"{row['cv_r2_mean']:.4f} +/- {row['cv_r2_std']:.4f} | {flag} |"
+        )
 
+    rf_row = comparison.loc[comparison["model_name"] == MODEL_RANDOM_FOREST].iloc[0]
     lines.extend(
         [
             "",
-            "## Held-out test metrics (same chronological test window)",
+            "## Legacy absolute-PI comparison (P12 context)",
             "",
-            "| framing | model | MAE | RMSE | R2 |",
-            "|---|---|---:|---:|---:|",
-        ]
-    )
-    for model_name in ALL_MODELS:
-        lines.append(
-            f"| absolute PI | {model_name} | "
-            f"{abs_by_name[model_name].mae:.5f} | {abs_by_name[model_name].rmse:.5f} | "
-            f"{abs_by_name[model_name].r2:.4f} |"
-        )
-    for model_name in ALL_MODELS:
-        lines.append(
-            f"| soiling_ratio | {model_name} | "
-            f"{ratio_by_name[model_name].mae:.5f} | {ratio_by_name[model_name].rmse:.5f} | "
-            f"{ratio_by_name[model_name].r2:.4f} |"
-        )
-
-    lines.extend(
-        [
+            f"Absolute-PI RF held-out R2 = {absolute_rf_r2:.4f}; soiling_ratio RF test R2 = "
+            f"{rf_row['test_r2']:.4f}. Reframing aligns ML with within-segment physics.",
             "",
-            "## Why scores changed",
+            "## Multi-family verdict (P13)",
             "",
-            f"Absolute-PI RF test R2 = {abs_by_name[MODEL_RANDOM_FOREST].r2:.4f}; "
-            f"soiling_ratio RF test R2 = {ratio_by_name[MODEL_RANDOM_FOREST].r2:.4f}. "
-            "Reframing removes segment-level level shifts so the ML task aligns with "
-            "within-segment soiling physics.",
+            panel_verdict_text,
             "",
-            "## ML vs simple trend (soiling_ratio framing)",
+            "MLPRegressor uses a small network; n=301 train rows is marginal for neural "
+            "models — interpret MLP scores cautiously.",
             "",
-            ml_verdict,
+            "Figure: `reports/figures/ml_panel_cv_r2_comparison.png` (blocked CV R2 with "
+            "test R2 overlaid; zero reference line).",
             "",
         ]
     )
 
-    if importance_trusted and importance is not None:
+    if investigation_model and importance is not None:
         lines.extend(
             [
-                "## Permutation importance (soiling_ratio RF, test set)",
+                f"## Permutation importance ({investigation_model}, test set)",
                 "",
-                "Reported because blocked CV R2 mean is non-negative.",
+                "Reported because this model has CV R2 >= 0 and beats the trend baseline.",
                 "",
                 "| rank | feature | mean | 95% CI |",
                 "|---:|---|---:|---|",
@@ -592,13 +704,13 @@ def write_ml_results_report(
             )
         lines.extend(["", "## Pollution verdict", "", pollution_note, ""])
     else:
-        rf_cv = ratio_cv_by[MODEL_RANDOM_FOREST]
+        best = comparison.iloc[0]
         lines.extend(
             [
                 "## Permutation importance",
                 "",
-                f"Skipped: blocked CV R2 mean = {rf_cv.r2_mean:.4f} (negative or NaN). "
-                "Permutation importances are only trustworthy when the model generalizes.",
+                f"Skipped: no model has CV R2 >= 0 and beats the trend baseline. "
+                f"Best CV R2 = {best['cv_r2_mean']:.4f} ({best['model_name']}).",
                 "",
             ]
         )
@@ -607,7 +719,38 @@ def write_ml_results_report(
     LOGGER.info("Wrote %s", path)
 
 
-def plot_permutation_importance(importance: pd.DataFrame) -> None:
+def plot_panel_cv_r2(comparison: pd.DataFrame) -> None:
+    """Bar chart of blocked CV R2 with test R2 overlaid and a zero reference line."""
+    ordered = comparison.sort_values("cv_r2_mean", ascending=True).reset_index(drop=True)
+    fig, ax = plt.subplots(figsize=(12, 6))
+    y_pos = np.arange(len(ordered))
+    ax.barh(
+        y_pos,
+        ordered["cv_r2_mean"],
+        xerr=ordered["cv_r2_std"],
+        color="C0",
+        alpha=0.75,
+        capsize=3,
+        label="Blocked CV R2",
+    )
+    ax.scatter(
+        ordered["test_r2"],
+        y_pos,
+        color="tab:red",
+        zorder=3,
+        label="Held-out test R2",
+    )
+    ax.axvline(0.0, color="black", linewidth=1.0, linestyle="--")
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(ordered["model_name"])
+    ax.set_xlabel("R2")
+    ax.set_title("P13 algorithm panel: blocked CV R2 vs held-out test R2 (soiling_ratio)")
+    ax.legend(loc="lower right")
+    fig.tight_layout()
+    _save_figure("ml_panel_cv_r2_comparison", fig, ordered)
+
+
+def plot_permutation_importance(importance: pd.DataFrame, model_name: str) -> None:
     """Bar chart of permutation importance with error bars."""
     config.FIGURES.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(8, 5))
@@ -623,7 +766,7 @@ def plot_permutation_importance(importance: pd.DataFrame) -> None:
     ax.set_yticklabels(importance["feature"])
     ax.invert_yaxis()
     ax.set_xlabel("Permutation importance (test set)")
-    ax.set_title("P12 RF permutation importance (soiling_ratio target)")
+    ax.set_title(f"P13 {model_name} permutation importance (soiling_ratio target)")
     fig.tight_layout()
     png = config.FIGURES / "ml_permutation_importance.png"
     csv = config.FIGURES / "ml_permutation_importance.csv"
@@ -659,7 +802,7 @@ def plot_predicted_vs_actual(
 
 
 def plot_partial_dependence(
-    model: RandomForestRegressor,
+    model: Any,
     x_train: pd.DataFrame,
     feature: str,
     p35_rate_pct: float | None = None,
@@ -699,7 +842,7 @@ def plot_partial_dependence(
     return curve
 
 
-def persist_model(model: RandomForestRegressor, features: list[str]) -> None:
+def persist_model(model: Any, features: list[str]) -> None:
     """Save fitted model and feature list for reproducibility."""
     model_path = config.DATA_PROCESSED / config.ML_MODEL_FILENAME
     feature_path = config.DATA_PROCESSED / config.ML_FEATURES_FILENAME
@@ -710,14 +853,16 @@ def persist_model(model: RandomForestRegressor, features: list[str]) -> None:
 
 
 def build_metrics_parquet(
+    panel_test: list[ModelMetrics],
+    panel_cv: list[CvMetrics],
     absolute_test: list[ModelMetrics],
     absolute_cv: list[CvMetrics],
-    ratio_test: list[ModelMetrics],
-    ratio_cv: list[CvMetrics],
-    ml_verdict: str,
+    comparison: pd.DataFrame,
+    panel_verdict_text: str,
     pollution_note: str,
     split: TimeSplit,
     importance: pd.DataFrame | None,
+    investigation_model: str | None,
 ) -> pd.DataFrame:
     """Assemble ml_model_metrics.parquet rows."""
     rows: list[dict[str, Any]] = [
@@ -728,11 +873,13 @@ def build_metrics_parquet(
             "n_train": len(split.train),
             "n_test": len(split.test),
             "primary_target": TARGET_SOILING_RATIO,
+            "n_panel_models": len(PANEL_MODELS),
         },
         {
             "record_type": "ml_verdict",
             "target_framing": TARGET_SOILING_RATIO,
-            "verdict": ml_verdict,
+            "verdict": panel_verdict_text,
+            "investigation_model": investigation_model,
         },
         {
             "record_type": "pollution_verdict",
@@ -740,6 +887,15 @@ def build_metrics_parquet(
             "verdict": pollution_note,
         },
     ]
+
+    for _, row in comparison.iterrows():
+        rows.append(
+            {
+                "record_type": "panel_comparison",
+                "target_framing": TARGET_SOILING_RATIO,
+                **row.to_dict(),
+            }
+        )
 
     def _append_metrics(test: list[ModelMetrics], cv: list[CvMetrics]) -> None:
         cv_map = {item.model_name: item for item in cv}
@@ -772,15 +928,16 @@ def build_metrics_parquet(
                 }
             )
 
+    _append_metrics(panel_test, panel_cv)
     _append_metrics(absolute_test, absolute_cv)
-    _append_metrics(ratio_test, ratio_cv)
 
-    if importance is not None:
+    if importance is not None and investigation_model:
         for _, row in importance.iterrows():
             rows.append(
                 {
                     "record_type": "permutation_importance",
                     "target_framing": TARGET_SOILING_RATIO,
+                    "model_name": investigation_model,
                     **row.to_dict(),
                 }
             )
@@ -788,7 +945,7 @@ def build_metrics_parquet(
 
 
 def run_ml_analysis() -> dict[str, Any]:
-    """Execute P5/P12 ML analysis end-to-end."""
+    """Execute P5/P12/P13 ML analysis end-to-end."""
     master = read_processed(MASTER_INPUT_NAME)
     segments = read_processed(SOILING_OUTPUT_NAME)
     robustness_path = config.DATA_PROCESSED / "soiling_robustness.parquet"
@@ -799,89 +956,94 @@ def run_ml_analysis() -> dict[str, Any]:
     frame = build_modelling_frame(master, segments)
     split = time_based_split(frame)
 
-    absolute_test, absolute_cv, _ = evaluate_test_models(split, TARGET_ABSOLUTE)
-    ratio_test, ratio_cv, rf_model = evaluate_test_models(split, TARGET_SOILING_RATIO)
+    panel_test, panel_cv, fitted_models = evaluate_test_models(
+        split, TARGET_SOILING_RATIO, PANEL_MODELS
+    )
+    absolute_test, absolute_cv, _ = evaluate_test_models(
+        split, TARGET_ABSOLUTE, LEGACY_MODELS
+    )
 
-    ratio_by_name = {m.model_name: m for m in ratio_test}
-    ratio_cv_by = {m.model_name: m for m in ratio_cv}
-    rf_test = ratio_by_name[MODEL_RANDOM_FOREST]
-    trend_test = ratio_by_name[MODEL_DAYS_SINCE_WASH]
-    rf_cv = ratio_cv_by[MODEL_RANDOM_FOREST]
+    comparison = build_panel_comparison(panel_test, panel_cv)
+    panel_verdict_text, investigation_model = panel_verdict(comparison)
 
-    ml_verdict = ml_beats_trend_verdict(rf_test, trend_test, rf_cv)
-    importance_trusted = rf_cv.r2_mean >= 0 and not np.isnan(rf_cv.r2_mean)
     importance: pd.DataFrame | None = None
     pollution_note = (
-        "Permutation importance skipped (blocked CV R2 negative); "
-        "consistent with weak ML generalization."
+        "Permutation importance skipped: no panel model has CV R2 >= 0 and beats "
+        "the days_since_wash trend on held-out test."
     )
 
-    if importance_trusted and rf_model is not None:
+    if investigation_model and investigation_model in fitted_models:
+        model = fitted_models[investigation_model]
         x_test, y_test = prepare_xy(split.test, TARGET_SOILING_RATIO)
-        importance = permutation_importance_with_ci(rf_model, x_test, y_test)
+        importance = permutation_importance_with_ci(model, x_test, y_test)
         pollution_note = pollution_verdict(importance)
-
-    metrics_df = build_metrics_parquet(
-        absolute_test,
-        absolute_cv,
-        ratio_test,
-        ratio_cv,
-        ml_verdict,
-        pollution_note,
-        split,
-        importance,
-    )
-    write_processed(config.ML_METRICS_OUTPUT_NAME, metrics_df)
-
-    if rf_model is not None:
-        persist_model(rf_model, list(FEATURE_COLUMNS))
-        rf_pred = rf_model.predict(prepare_xy(split.test, TARGET_SOILING_RATIO)[0])
-        plot_predicted_vs_actual(split, rf_pred, TARGET_SOILING_RATIO)
-        if importance_trusted and importance is not None:
-            plot_permutation_importance(importance)
+        persist_model(model, list(FEATURE_COLUMNS))
+        y_pred = model.predict(x_test)
+        plot_predicted_vs_actual(split, y_pred, TARGET_SOILING_RATIO)
+        plot_permutation_importance(importance, investigation_model)
+        if investigation_model in TREE_PANEL_MODELS:
             x_train, _ = prepare_xy(split.train, TARGET_SOILING_RATIO)
             p35_rate = p35_soiling_rate_pct(segments, robustness)
             plot_partial_dependence(
-                rf_model, x_train, "days_since_wash", p35_rate_pct=p35_rate
+                model, x_train, "days_since_wash", p35_rate_pct=p35_rate
             )
             top_pollutant = importance.loc[
                 importance["feature"].isin(POLLUTION_FEATURES)
             ].iloc[0]["feature"]
             plot_partial_dependence(
-                rf_model,
+                model,
                 x_train,
                 top_pollutant,
                 filename_suffix="top_pollutant",
             )
+    else:
+        rf_model = fitted_models.get(MODEL_RANDOM_FOREST)
+        if rf_model is not None:
+            persist_model(rf_model, list(FEATURE_COLUMNS))
+            rf_pred = rf_model.predict(prepare_xy(split.test, TARGET_SOILING_RATIO)[0])
+            plot_predicted_vs_actual(split, rf_pred, TARGET_SOILING_RATIO)
 
-    write_ml_results_report(
+    metrics_df = build_metrics_parquet(
+        panel_test,
+        panel_cv,
         absolute_test,
         absolute_cv,
-        ratio_test,
-        ratio_cv,
-        ml_verdict,
+        comparison,
+        panel_verdict_text,
+        pollution_note,
+        split,
+        importance,
+        investigation_model,
+    )
+    write_processed(config.ML_METRICS_OUTPUT_NAME, metrics_df)
+
+    plot_panel_cv_r2(comparison)
+    write_ml_results_report(
+        comparison,
+        panel_verdict_text,
+        next(m for m in absolute_test if m.model_name == MODEL_RANDOM_FOREST).r2,
         importance,
         pollution_note,
         split,
-        importance_trusted,
+        investigation_model,
     )
 
-    abs_rf = next(m for m in absolute_test if m.model_name == MODEL_RANDOM_FOREST)
+    best = comparison.iloc[0]
+    rf_row = comparison.loc[comparison["model_name"] == MODEL_RANDOM_FOREST].iloc[0]
     LOGGER.info(
-        "P12 soiling_ratio RF test MAE=%.5f R2=%.4f (CV R2=%.4f +/- %.4f); "
+        "P13 panel best CV R2=%s (%.4f +/- %.4f); RF soiling_ratio test R2=%.4f; "
         "absolute PI RF test R2=%.4f",
-        rf_test.mae,
-        rf_test.r2,
-        rf_cv.r2_mean,
-        rf_cv.r2_std,
-        abs_rf.r2,
+        best["model_name"],
+        best["cv_r2_mean"],
+        best["cv_r2_std"],
+        rf_row["test_r2"],
+        next(m for m in absolute_test if m.model_name == MODEL_RANDOM_FOREST).r2,
     )
 
     return {
-        "absolute_test": absolute_test,
-        "ratio_test": ratio_test,
-        "ratio_cv": ratio_cv,
-        "ml_verdict": ml_verdict,
+        "comparison": comparison,
+        "panel_verdict": panel_verdict_text,
+        "investigation_model": investigation_model,
         "importance": importance,
         "split": split,
     }

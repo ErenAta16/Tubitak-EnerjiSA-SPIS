@@ -51,6 +51,8 @@ FIGURE_MANIFEST: tuple[tuple[str, str], ...] = (
     ("robustness_residual_vs_pm10", "Daily PI residual vs accumulated CAMS PM10"),
     ("robustness_residual_vs_ground_pm10", "Daily PI residual vs accumulated ground PM10"),
     ("robustness_residual_vs_dust", "Daily PI residual vs accumulated dust"),
+    ("ml_panel_cv_r2_comparison", "P13 algorithm panel CV vs test R2 (soiling_ratio)"),
+    ("ml_predicted_vs_actual", "RF predicted vs actual soiling_ratio on held-out test"),
     ("robustness_rain_recovery", "Rain-event PI recovery distribution"),
     ("optimize_cost_vs_interval", "Total cost vs wash interval at real 2023 PTF central case"),
     ("optimize_t_star_heatmap", "T* heatmap over wash cost and ASSUMED PTF sweep"),
@@ -114,6 +116,12 @@ def collect_headline_metrics() -> pd.DataFrame:
         & (ml["target_framing"] == "soiling_ratio")
     ].iloc[0]
     ml_verdict_row = ml.loc[ml["record_type"] == "ml_verdict"].iloc[0]
+    panel_best = ml.loc[ml["record_type"] == "panel_comparison"].sort_values(
+        "cv_r2_mean", ascending=False
+    ).iloc[0]
+    panel_any_non_negative = bool(
+        (ml.loc[ml["record_type"] == "panel_comparison"]["cv_r2_mean"] >= 0).any()
+    )
     pm10 = robustness.loc[robustness["record_type"] == "pollution_pm10"].iloc[0]
     ground_pm10 = robustness.loc[
         robustness["record_type"] == "pollution_ground_pm10_accumulated"
@@ -208,10 +216,28 @@ def collect_headline_metrics() -> pd.DataFrame:
             "days_since_wash linear baseline",
         ),
         (
+            "ml_panel_best_cv_r2",
+            f"{panel_best['cv_r2_mean']:.4f} +/- {panel_best['cv_r2_std']:.4f}",
+            "",
+            f"P13 best: {panel_best['model_name']}",
+        ),
+        (
+            "ml_panel_model_count",
+            str(len(ml.loc[ml["record_type"] == "panel_comparison"])),
+            "count",
+            "P13 algorithm panel",
+        ),
+        (
+            "ml_panel_any_cv_r2_non_negative",
+            str(panel_any_non_negative),
+            "bool",
+            "P13 blocked TimeSeriesSplit",
+        ),
+        (
             "ml_verdict",
             str(ml_verdict_row["verdict"])[:120],
             "text",
-            "P12 soiling_ratio framing",
+            "P13 multi-family panel",
         ),
         ("rf_test_mae", f"{rf['mae']:.4f}", "", "P12 soiling_ratio RF held-out"),
         ("rf_test_r2", f"{rf['r2']:.4f}", "", "P12 soiling_ratio RF held-out"),
@@ -386,14 +412,14 @@ Actual mean inter-wash gap: **{m['actual_mean_inter_wash_gap'].value} days**. At
 (over-washing), but if Enerjisa supplies a current-TL wash cost without rebasing the
 2023 PTF, the nominal price biases T* **longer** — keep the cadence verdict cautious.
 
-## Machine learning corroboration (P5 / P12)
+## Machine learning corroboration (P5 / P12 / P13)
 
-P12 reframes the target to within-segment **soiling_ratio** (fair task; PI no longer
-resets between washes). Blocked CV R2 (RF) =
-**{m['ml_soiling_ratio_rf_cv_r2'].value}**; held-out test R2 =
-**{m['ml_soiling_ratio_rf_test_r2'].value}** vs legacy absolute-PI RF R2 =
-**{m['ml_absolute_pi_rf_test_r2'].value}**. Simple trend baseline R2 =
-**{m['ml_soiling_ratio_trend_test_r2'].value}**. {m['ml_verdict'].value}
+P13 compares **{m['ml_panel_model_count'].value}** scikit-learn algorithms on
+within-segment **soiling_ratio** (P12 fair framing). Best blocked CV R2 =
+**{m['ml_panel_best_cv_r2'].value}** ({m['ml_panel_best_cv_r2'].source}). Any model
+with CV R2 >= 0: **{m['ml_panel_any_cv_r2_non_negative'].value}**. Held-out RF
+soiling_ratio test R2 = **{m['ml_soiling_ratio_rf_test_r2'].value}** (legacy absolute-PI
+RF R2 = **{m['ml_absolute_pi_rf_test_r2'].value}**). {m['ml_verdict'].value}
 
 ## Limitations
 

@@ -68,14 +68,14 @@ Actual mean inter-wash gap: **79 days**. At the
 (over-washing), but if Enerjisa supplies a current-TL wash cost without rebasing the
 2023 PTF, the nominal price biases T* **longer** — keep the cadence verdict cautious.
 
-## Machine learning corroboration (P5 / P12)
+## Machine learning corroboration (P5 / P12 / P13)
 
-P12 reframes the target to within-segment **soiling_ratio** (fair task; PI no longer
-resets between washes). Blocked CV R2 (RF) =
-**-1.3525 +/- 2.1188**; held-out test R2 =
-**-0.5585** vs legacy absolute-PI RF R2 =
-**-0.7842**. Simple trend baseline R2 =
-**-0.8942**. Random Forest modestly beats the trend baseline on the held-out window, but blocked CV R2 remains negative — treat ML ga
+P13 compares **15** scikit-learn algorithms on
+within-segment **soiling_ratio** (P12 fair framing). Best blocked CV R2 =
+**-0.4396 +/- 0.5911** (P13 best: svr_rbf). Any model
+with CV R2 >= 0: **False**. Held-out RF
+soiling_ratio test R2 = **-0.5585** (legacy absolute-PI
+RF R2 = **-0.7842**). No algorithm in the 15-model panel achieves non-negative blocked CV R2 **and** beats the days_since_wash trend on held-o
 
 ## Limitations
 
@@ -92,6 +92,8 @@ resets between washes). Blocked CV R2 (RF) =
 - **robustness_residual_vs_pm10**: Daily PI residual vs accumulated CAMS PM10
 - **robustness_residual_vs_ground_pm10**: Daily PI residual vs accumulated ground PM10
 - **robustness_residual_vs_dust**: Daily PI residual vs accumulated dust
+- **ml_panel_cv_r2_comparison**: P13 algorithm panel CV vs test R2 (soiling_ratio)
+- **ml_predicted_vs_actual**: RF predicted vs actual soiling_ratio on held-out test
 - **robustness_rain_recovery**: Rain-event PI recovery distribution
 - **optimize_cost_vs_interval**: Total cost vs wash interval at real 2023 PTF central case
 - **optimize_t_star_heatmap**: T* heatmap over wash cost and ASSUMED PTF sweep
