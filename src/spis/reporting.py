@@ -94,11 +94,26 @@ def collect_headline_metrics() -> pd.DataFrame:
     price_cmp = optimize.loc[optimize["record_type"] == "price_comparison"].iloc[0]
     bench = optimize.loc[optimize["record_type"] == "benchmark_summary"].iloc[0]
     rf = ml.loc[
-        (ml["record_type"] == "test_metrics") & (ml["model_name"] == "random_forest")
+        (ml["record_type"] == "test_metrics")
+        & (ml["model_name"] == "random_forest")
+        & (ml["target_framing"] == "soiling_ratio")
+    ].iloc[0]
+    rf_abs = ml.loc[
+        (ml["record_type"] == "test_metrics")
+        & (ml["model_name"] == "random_forest")
+        & (ml["target_framing"] == "pi_temp_corrected")
     ].iloc[0]
     baseline = ml.loc[
-        (ml["record_type"] == "test_metrics") & (ml["model_name"] == "days_since_wash_linear")
+        (ml["record_type"] == "test_metrics")
+        & (ml["model_name"] == "days_since_wash_linear")
+        & (ml["target_framing"] == "soiling_ratio")
     ].iloc[0]
+    rf_cv = ml.loc[
+        (ml["record_type"] == "cv_metrics")
+        & (ml["model_name"] == "random_forest")
+        & (ml["target_framing"] == "soiling_ratio")
+    ].iloc[0]
+    ml_verdict_row = ml.loc[ml["record_type"] == "ml_verdict"].iloc[0]
     pm10 = robustness.loc[robustness["record_type"] == "pollution_pm10"].iloc[0]
     ground_pm10 = robustness.loc[
         robustness["record_type"] == "pollution_ground_pm10_accumulated"
@@ -168,13 +183,43 @@ def collect_headline_metrics() -> pd.DataFrame:
             "%",
             "P3.5 positive recoveries only",
         ),
-        ("rf_test_r2", f"{rf['r2']:.4f}", "", "P5 held-out test"),
-        ("rf_test_mae", f"{rf['mae']:.4f}", "", "P5 held-out test"),
+        (
+            "ml_soiling_ratio_rf_test_r2",
+            f"{rf['r2']:.4f}",
+            "",
+            "P12 reframed target",
+        ),
+        (
+            "ml_absolute_pi_rf_test_r2",
+            f"{rf_abs['r2']:.4f}",
+            "",
+            "P5 legacy target (comparison)",
+        ),
+        (
+            "ml_soiling_ratio_rf_cv_r2",
+            f"{rf_cv['r2_mean']:.4f} +/- {rf_cv['r2_std']:.4f}",
+            "",
+            "P12 blocked TimeSeriesSplit",
+        ),
+        (
+            "ml_soiling_ratio_trend_test_r2",
+            f"{baseline['r2']:.4f}",
+            "",
+            "days_since_wash linear baseline",
+        ),
+        (
+            "ml_verdict",
+            str(ml_verdict_row["verdict"])[:120],
+            "text",
+            "P12 soiling_ratio framing",
+        ),
+        ("rf_test_mae", f"{rf['mae']:.4f}", "", "P12 soiling_ratio RF held-out"),
+        ("rf_test_r2", f"{rf['r2']:.4f}", "", "P12 soiling_ratio RF held-out"),
         (
             "baseline_days_since_wash_r2",
             f"{baseline['r2']:.4f}",
             "",
-            "P5 simple trend baseline",
+            "P12 days_since_wash on soiling_ratio",
         ),
         (
             "central_ptf_tl_mwh",
@@ -316,7 +361,8 @@ UHKIA, urban proxy ~40-60 km from plant). Daily raw ground PM10 is reported in
 SOILING_ROBUSTNESS.md as a sensitivity check only. Segment-level correlations (n=7)
 and RF permutation ranks are **weak, non-confirmatory** signals only.
 
-The Random Forest test R2 is **{m['rf_test_r2'].value}** (negative). Permutation
+The reframed soiling_ratio RF test R2 is **{m['rf_test_r2'].value}** (legacy
+absolute-PI R2 = {m['ml_absolute_pi_rf_test_r2'].value}). Permutation
 importances are **not evidence** for a pollution driver; any mid-ranked dust feature
 may reflect season/collinearity, not causation.
 
@@ -340,18 +386,21 @@ Actual mean inter-wash gap: **{m['actual_mean_inter_wash_gap'].value} days**. At
 (over-washing), but if Enerjisa supplies a current-TL wash cost without rebasing the
 2023 PTF, the nominal price biases T* **longer** — keep the cadence verdict cautious.
 
-## Machine learning corroboration (P5)
+## Machine learning corroboration (P5 / P12)
 
-RF test MAE = {m['rf_test_mae'].value}, R2 = {m['rf_test_r2'].value}; simple
-days_since_wash baseline R2 = {m['baseline_days_since_wash_r2'].value}. RF does not
-provide a strong predictive layer; the physical soiling trend model suffices.
+P12 reframes the target to within-segment **soiling_ratio** (fair task; PI no longer
+resets between washes). Blocked CV R2 (RF) =
+**{m['ml_soiling_ratio_rf_cv_r2'].value}**; held-out test R2 =
+**{m['ml_soiling_ratio_rf_test_r2'].value}** vs legacy absolute-PI RF R2 =
+**{m['ml_absolute_pi_rf_test_r2'].value}**. Simple trend baseline R2 =
+**{m['ml_soiling_ratio_trend_test_r2'].value}**. {m['ml_verdict'].value}
 
 ## Limitations
 
 - Single site (Canakkale); no Balikesir comparison data.
 - Irradiance-sensor co-soiling cancels part of true module loss in PI.
 - PTF central price is 2023-only nominal TL; wash cost assumed.
-- Pollution null result and negative RF R2 are valid findings, not failures.
+- Pollution null result and weak ML generalization remain valid findings, not failures.
 
 ## Figure captions
 

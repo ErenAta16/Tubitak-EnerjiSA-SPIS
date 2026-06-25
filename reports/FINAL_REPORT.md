@@ -43,7 +43,8 @@ UHKIA, urban proxy ~40-60 km from plant). Daily raw ground PM10 is reported in
 SOILING_ROBUSTNESS.md as a sensitivity check only. Segment-level correlations (n=7)
 and RF permutation ranks are **weak, non-confirmatory** signals only.
 
-The Random Forest test R2 is **-0.7842** (negative). Permutation
+The reframed soiling_ratio RF test R2 is **-0.5585** (legacy
+absolute-PI R2 = -0.7842). Permutation
 importances are **not evidence** for a pollution driver; any mid-ranked dust feature
 may reflect season/collinearity, not causation.
 
@@ -67,18 +68,21 @@ Actual mean inter-wash gap: **79 days**. At the
 (over-washing), but if Enerjisa supplies a current-TL wash cost without rebasing the
 2023 PTF, the nominal price biases T* **longer** — keep the cadence verdict cautious.
 
-## Machine learning corroboration (P5)
+## Machine learning corroboration (P5 / P12)
 
-RF test MAE = 0.2853, R2 = -0.7842; simple
-days_since_wash baseline R2 = -1.1951. RF does not
-provide a strong predictive layer; the physical soiling trend model suffices.
+P12 reframes the target to within-segment **soiling_ratio** (fair task; PI no longer
+resets between washes). Blocked CV R2 (RF) =
+**-1.3525 +/- 2.1188**; held-out test R2 =
+**-0.5585** vs legacy absolute-PI RF R2 =
+**-0.7842**. Simple trend baseline R2 =
+**-0.8942**. Random Forest modestly beats the trend baseline on the held-out window, but blocked CV R2 remains negative — treat ML ga
 
 ## Limitations
 
 - Single site (Canakkale); no Balikesir comparison data.
 - Irradiance-sensor co-soiling cancels part of true module loss in PI.
 - PTF central price is 2023-only nominal TL; wash cost assumed.
-- Pollution null result and negative RF R2 are valid findings, not failures.
+- Pollution null result and weak ML generalization remain valid findings, not failures.
 
 ## Figure captions
 

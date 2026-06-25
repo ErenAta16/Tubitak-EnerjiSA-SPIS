@@ -1,4 +1,4 @@
-"""Unit tests for P5 machine-learning pipeline."""
+"""Unit tests for P5/P12 machine-learning pipeline."""
 
 from __future__ import annotations
 
@@ -9,12 +9,25 @@ from sklearn.ensemble import RandomForestRegressor
 from spis import config
 from spis.ml import (
     FEATURE_COLUMNS,
+    TARGET_SOILING_RATIO,
     assert_no_leakage,
+    attach_soiling_ratio,
+    blocked_cv_metrics,
     build_modelling_frame,
     permutation_importance_with_ci,
     prepare_xy,
     time_based_split,
 )
+
+
+def _synthetic_segments() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "segment_id": [1],
+            "baseline_pi_temp_corrected": [2.0],
+            "soiling_rate_pct_per_day": [-0.1],
+        }
+    )
 
 
 def _synthetic_master(n: int = 120) -> pd.DataFrame:
@@ -55,13 +68,21 @@ def test_leakage_guard_rejects_production() -> None:
         raise AssertionError("Expected leakage guard to fail on production")
 
 
+def test_soiling_ratio_uses_segment_baseline() -> None:
+    """Soiling ratio equals 100 * pi / P3 segment baseline."""
+    master = _synthetic_master(10)
+    segments = _synthetic_segments()
+    frame = attach_soiling_ratio(master, segments)
+    expected = 100.0 * master["pi_temp_corrected"] / 2.0
+    assert np.allclose(frame[TARGET_SOILING_RATIO], expected)
+
+
 def test_split_is_time_ordered() -> None:
     """Train dates must precede all test dates."""
     master = _synthetic_master()
-    # attach_clearness needs nasa merge columns - mock minimal clearness path
     master["nasa_clrsky_kwh_m2"] = 5.0
     master["clearness_index"] = 0.9
-    frame = build_modelling_frame(master)
+    frame = build_modelling_frame(master, _synthetic_segments())
     split = time_based_split(frame, test_fraction=0.2)
     assert split.train["date"].max() <= split.test["date"].min()
     assert len(split.test) >= 1
@@ -71,10 +92,10 @@ def test_pipeline_fits_and_predicts_on_synthetic() -> None:
     """Tiny synthetic frame runs through feature prep and RF predict."""
     master = _synthetic_master(80)
     master["nasa_clrsky_kwh_m2"] = 5.0
-    frame = build_modelling_frame(master)
+    frame = build_modelling_frame(master, _synthetic_segments())
     split = time_based_split(frame, test_fraction=0.25)
-    x_train, y_train = prepare_xy(split.train)
-    x_test, y_test = prepare_xy(split.test)
+    x_train, y_train = prepare_xy(split.train, TARGET_SOILING_RATIO)
+    x_test, y_test = prepare_xy(split.test, TARGET_SOILING_RATIO)
     model = RandomForestRegressor(n_estimators=10, random_state=config.RANDOM_STATE)
     model.fit(x_train, y_train)
     preds = model.predict(x_test)
@@ -82,12 +103,22 @@ def test_pipeline_fits_and_predicts_on_synthetic() -> None:
     assert not np.isnan(preds).any()
 
 
+def test_blocked_cv_returns_all_models() -> None:
+    """Blocked CV returns finite mean/std metrics."""
+    master = _synthetic_master(120)
+    master["nasa_clrsky_kwh_m2"] = 5.0
+    frame = build_modelling_frame(master, _synthetic_segments())
+    split = time_based_split(frame, test_fraction=0.2)
+    cv = blocked_cv_metrics(split.train, TARGET_SOILING_RATIO, "mean_baseline", n_splits=3)
+    assert cv.n_folds == 3
+    assert np.isfinite(cv.r2_mean)
+    assert cv.r2_std >= 0.0
+
+
 def test_permutation_importance_one_score_per_feature() -> None:
     """Permutation importance returns one row per feature."""
     rng = np.random.default_rng(config.RANDOM_STATE)
-    x = pd.DataFrame(
-        {col: rng.normal(size=40) for col in FEATURE_COLUMNS}
-    )
+    x = pd.DataFrame({col: rng.normal(size=40) for col in FEATURE_COLUMNS})
     y = pd.Series(rng.normal(size=40))
     model = RandomForestRegressor(n_estimators=20, random_state=config.RANDOM_STATE)
     model.fit(x, y)
