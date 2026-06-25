@@ -34,3 +34,20 @@ Balikesir PROVISIONAL coordinates do NOT show consistently lower pollution than 
 
 - Analysis window: 2023-01-01 .. 2025-10-22
 - Daily rows compared: Canakkale 1026, Balikesir 1026
+
+## Ground-station vs CAMS cross-check (national network)
+
+In-situ PM from sim.csb.gov.tr daily exports (StationDataDownloadNewData). Canakkale: **TR170141** (Canakkale Merkez UHKIA). Balikesir proxy: **TR100241** (Bandirma-MTHM; nearest national station to PROVISIONAL Balikesir coordinates).
+
+| Site | Pollutant | Station | n | Pearson r | Median bias (g-c) | Ground med. | CAMS med. | Verdict |
+|---|---|---|---:|---:|---:|---:|---:|---|
+| canakkale | pm10 | TR170141 | 832 | 0.574 | 16.90 | 30.1 | 12.5 | Ground PM10 exceeds CAMS on median; CAMS captures direction but may underestimate absolute local PM10. |
+| canakkale | pm2_5 | TR170141 | 930 | 0.609 | 4.94 | 13.7 | 8.6 | Ground and CAMS PM2.5 agree in magnitude and covary on daily scale; CAMS is a reasonable proxy for relative pollution context. |
+| balikesir PROVISIONAL | pm10 | TR100241 | 931 | 0.737 | 22.11 | 37.5 | 15.7 | Ground PM10 exceeds CAMS on median; CAMS captures direction but may underestimate absolute local PM10. |
+
+### Ground PM10 synthesis
+
+- **canakkale**: Ground PM10 exceeds CAMS on median; CAMS captures direction but may underestimate absolute local PM10.
+- **balikesir**: Ground PM10 exceeds CAMS on median; CAMS captures direction but may underestimate absolute local PM10.
+
+Implication for SPIS: national ground PM10 at Canakkale exceeds CAMS by ~2.4x on median (30.1 vs 12.5 ug/m3). Weak daily pollution–performance links in P3.5 remain credible: CAMS supports relative context but not absolute local particulate load.

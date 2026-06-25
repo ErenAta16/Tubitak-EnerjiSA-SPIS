@@ -57,8 +57,8 @@ def verify_multisite() -> bool:
         text = report_path.read_text(encoding="utf-8")
         if "PROVISIONAL" not in text:
             failures.append("SITE_COMPARISON.md missing PROVISIONAL label for Balikesir")
-        if "not fault diagnosis" not in text.lower() and "environmental only" not in text.lower():
-            failures.append("SITE_COMPARISON.md missing limitation language")
+        if "Ground-station vs CAMS" not in text:
+            failures.append("SITE_COMPARISON.md missing ground-vs-CAMS section")
 
     tests = comparison["tests"]
     if tests["median_canakkale"].isna().any() or tests["median_balikesir"].isna().any():
@@ -86,6 +86,8 @@ def verify_multisite() -> bool:
         "site_comparison_aod_monthly",
         "site_comparison_rainfall_monthly",
         "site_comparison_median_pollution_bar",
+        "site_comparison_ground_vs_cams_canakkale",
+        "site_comparison_ground_vs_cams_balikesir",
         "inverter_relative_performance_timeseries",
         "inverter_relative_performance_ranking",
     ):

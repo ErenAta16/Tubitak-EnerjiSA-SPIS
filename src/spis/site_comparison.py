@@ -13,6 +13,7 @@ from scipy import stats
 
 from spis import config
 from spis.data_sources.nasa_power import fetch_nasa_power_daily, validate_nasa_power
+from spis.data_sources.national_aq import fetch_national_aq_daily, get_national_station
 from spis.data_sources.open_meteo_aq import fetch_open_meteo_air_quality, validate_open_meteo_aq
 from spis.io import write_processed
 from spis.sites import get_site, provisional_label
@@ -180,9 +181,103 @@ def environmental_verdict(tests: pd.DataFrame) -> str:
     )
 
 
+def compare_ground_to_cams(
+    ground: pd.DataFrame,
+    cams: pd.DataFrame,
+    site_key: str,
+    pollutant: str = "pm10",
+) -> dict[str, Any]:
+    """Compare in-situ ground PM with CAMS PM at daily scale."""
+    cams_col = pollutant
+    ground_col = pollutant
+    merged = ground[["date", ground_col]].merge(
+        cams[["date", cams_col]].rename(columns={cams_col: "cams_value"}),
+        on="date",
+        how="inner",
+    )
+    merged = merged.dropna(subset=[ground_col, "cams_value"])
+    if len(merged) < 30:
+        raise ValueError(
+            f"Insufficient paired ground/CAMS days for {site_key} {pollutant}: {len(merged)}"
+        )
+
+    ground_vals = merged[ground_col].to_numpy()
+    cams_vals = merged["cams_value"].to_numpy()
+    bias = ground_vals - cams_vals
+    pearson = float(stats.pearsonr(ground_vals, cams_vals).statistic)
+    spearman = float(stats.spearmanr(ground_vals, cams_vals).statistic)
+    return {
+        "site_key": site_key,
+        "pollutant": pollutant,
+        "station_code": ground["station_code"].iloc[0],
+        "station_name": ground["station_name"].iloc[0],
+        "n_pairs": len(merged),
+        "pearson_r": pearson,
+        "spearman_r": spearman,
+        "median_bias_ground_minus_cams": float(np.median(bias)),
+        "mean_bias_ground_minus_cams": float(np.mean(bias)),
+        "mae": float(np.mean(np.abs(bias))),
+        "ground_median": float(np.median(ground_vals)),
+        "cams_median": float(np.median(cams_vals)),
+        "paired_frame": merged.rename(columns={ground_col: "ground_value"}),
+    }
+
+
+def ground_cams_verdict(row: pd.Series) -> str:
+    """Plain-language statement on CAMS representativeness vs ground PM."""
+    label = str(row["pollutant"]).upper().replace("_", ".")
+    if row["median_bias_ground_minus_cams"] > 10 and row["pearson_r"] < 0.4:
+        return (
+            f"Ground {label} is materially higher than CAMS with weak daily correlation; "
+            "gridded CAMS likely understates local particulate loading."
+        )
+    if row["median_bias_ground_minus_cams"] > 5:
+        return (
+            f"Ground {label} exceeds CAMS on median; CAMS captures direction but may "
+            f"underestimate absolute local {label}."
+        )
+    if abs(row["median_bias_ground_minus_cams"]) <= 5 and row["pearson_r"] >= 0.4:
+        return (
+            f"Ground and CAMS {label} agree in magnitude and covary on daily scale; "
+            "CAMS is a reasonable proxy for relative pollution context."
+        )
+    return (
+        f"Mixed agreement for {label}: CAMS tracks some ground variability but bias and "
+        "correlation do not support treating CAMS as a precise local substitute."
+    )
+
+
+def run_ground_cams_validation(
+    site_frames: dict[str, pd.DataFrame],
+    force_refresh: bool = False,
+) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
+    """Fetch national ground AQ and compare to CAMS for each configured site."""
+    rows: list[dict[str, Any]] = []
+    paired: dict[str, pd.DataFrame] = {}
+    for site_key in COMPARISON_SITE_KEYS:
+        ground, _ = fetch_national_aq_daily(site_key=site_key, force_refresh=force_refresh)
+        cams = site_frames[site_key][["date", "pm10", "pm2_5"]]
+        for pollutant in ("pm10", "pm2_5"):
+            if pollutant == "pm2_5" and ground["pm2_5"].notna().sum() < 30:
+                LOGGER.warning(
+                    "Skipping ground/CAMS PM2.5 comparison for %s: insufficient ground coverage",
+                    site_key,
+                )
+                continue
+            stats = compare_ground_to_cams(ground, cams, site_key, pollutant=pollutant)
+            paired_frame = stats.pop("paired_frame")
+            if pollutant == "pm10":
+                paired[site_key] = paired_frame
+            rows.append(stats)
+    result = pd.DataFrame(rows)
+    result["verdict"] = result.apply(ground_cams_verdict, axis=1)
+    return result, paired
+
+
 def write_site_comparison_report(
     tests: pd.DataFrame,
     daily_long: pd.DataFrame,
+    ground_stats: pd.DataFrame | None = None,
     path: Path | None = None,
 ) -> Path:
     """Write SITE_COMPARISON.md with verdict and data gaps."""
@@ -240,6 +335,50 @@ def write_site_comparison_report(
             f"Balikesir {tests['n_balikesir'].iloc[0]}",
         ]
     )
+
+    if ground_stats is not None and not ground_stats.empty:
+        lines.extend(["", "## Ground-station vs CAMS cross-check (national network)", ""])
+        lines.append(
+            "In-situ PM from sim.csb.gov.tr daily exports (StationDataDownloadNewData). "
+            "Canakkale: **TR170141** (Canakkale Merkez UHKIA). "
+            "Balikesir proxy: **TR100241** (Bandirma-MTHM; nearest national station to "
+            "PROVISIONAL Balikesir coordinates)."
+        )
+        lines.extend(
+            [
+                "",
+                "| Site | Pollutant | Station | n | Pearson r | Median bias (g-c) | "
+                "Ground med. | CAMS med. | Verdict |",
+                "|---|---|---|---:|---:|---:|---:|---:|---|",
+            ]
+        )
+        for _, row in ground_stats.iterrows():
+            prov = " PROVISIONAL" if row["site_key"] == "balikesir" else ""
+            lines.append(
+                f"| {row['site_key']}{prov} | {row['pollutant']} | {row['station_code']} | "
+                f"{int(row['n_pairs'])} | {row['pearson_r']:.3f} | "
+                f"{row['median_bias_ground_minus_cams']:.2f} | {row['ground_median']:.1f} | "
+                f"{row['cams_median']:.1f} | {row['verdict']} |"
+            )
+        pm10 = ground_stats.loc[ground_stats["pollutant"] == "pm10"]
+        if not pm10.empty:
+            lines.extend(["", "### Ground PM10 synthesis", ""])
+            for _, row in pm10.iterrows():
+                lines.append(f"- **{row['site_key']}**: {row['verdict']}")
+            can_row = pm10.loc[pm10["site_key"] == "canakkale"]
+            if not can_row.empty:
+                ratio = float(can_row.iloc[0]["ground_median"] / can_row.iloc[0]["cams_median"])
+                lines.extend(
+                    [
+                        "",
+                        "Implication for SPIS: national ground PM10 at Canakkale exceeds CAMS "
+                        f"by ~{ratio:.1f}x on median ({can_row.iloc[0]['ground_median']:.1f} vs "
+                        f"{can_row.iloc[0]['cams_median']:.1f} ug/m3). Weak daily pollution–"
+                        "performance links in P3.5 remain credible: CAMS supports relative "
+                        "context but not absolute local particulate load.",
+                    ]
+                )
+
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     LOGGER.info("Wrote %s", out)
     return out
@@ -324,31 +463,83 @@ def save_site_comparison_figures(
     core.to_csv(bar_csv, index=False)
 
 
+def save_ground_vs_cams_figures(paired: dict[str, pd.DataFrame]) -> None:
+    """Scatter + monthly mean overlay of ground PM10 vs CAMS PM10."""
+    config.FIGURES.mkdir(parents=True, exist_ok=True)
+    export_rows: list[pd.DataFrame] = []
+
+    for site_key, frame in paired.items():
+        station = get_national_station(site_key)
+        prov = " PROVISIONAL" if site_key == "balikesir" else ""
+        label = f"{site_key}{prov} ({station.station_code})"
+
+        fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+        axes[0].scatter(frame["cams_value"], frame["ground_value"], alpha=0.35, s=12)
+        max_val = max(frame["cams_value"].max(), frame["ground_value"].max())
+        axes[0].plot([0, max_val], [0, max_val], "k--", linewidth=0.8, label="1:1")
+        axes[0].set_xlabel("CAMS PM10 (ug/m3)")
+        axes[0].set_ylabel("Ground PM10 (ug/m3)")
+        axes[0].set_title(f"Daily ground vs CAMS PM10 — {label}")
+        axes[0].legend()
+
+        monthly = frame.copy()
+        monthly["month"] = monthly["date"].dt.to_period("M").dt.to_timestamp()
+        grouped = monthly.groupby("month", as_index=False)[["ground_value", "cams_value"]].mean()
+        axes[1].plot(grouped["month"], grouped["ground_value"], marker="o", label="Ground PM10")
+        axes[1].plot(grouped["month"], grouped["cams_value"], marker="s", label="CAMS PM10")
+        axes[1].set_title(f"Monthly mean PM10 — {label}")
+        axes[1].legend()
+        fig.autofmt_xdate()
+
+        stem = f"site_comparison_ground_vs_cams_{site_key}"
+        png = config.FIGURES / f"{stem}.png"
+        csv = config.FIGURES / f"{stem}.csv"
+        fig.savefig(png, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        export = grouped.assign(site_key=site_key, station_code=station.station_code)
+        export.to_csv(csv, index=False)
+        export_rows.append(frame.assign(site_key=site_key, station_code=station.station_code))
+
+    if export_rows:
+        combined = pd.concat(export_rows, ignore_index=True)
+        combined.to_csv(config.FIGURES / "site_comparison_ground_vs_cams_daily.csv", index=False)
+
+
 def run_site_comparison(force_refresh: bool = False) -> dict[str, Any]:
     """Execute Phase B environmental comparison end-to-end."""
     daily, monthly_long, daily_long = build_site_comparison_frames(force_refresh=force_refresh)
     tests = run_pollution_difference_tests(daily_long)
+    site_frames = {
+        site_key: daily_long.loc[daily_long["site_key"] == site_key].copy()
+        for site_key in COMPARISON_SITE_KEYS
+    }
+    ground_stats, paired = run_ground_cams_validation(site_frames, force_refresh=force_refresh)
 
     stats_block = tests.copy()
     stats_block["record_type"] = "pollution_test"
+    ground_block = ground_stats.copy()
+    ground_block["record_type"] = "ground_cams_validation"
     export = pd.concat(
         [
             daily.assign(record_type="daily_wide"),
             monthly_long.assign(record_type="monthly_long"),
             daily_long.assign(record_type="daily_long"),
             stats_block,
+            ground_block,
         ],
         ignore_index=True,
         sort=False,
     )
     write_processed(SITE_COMPARISON_OUTPUT, export)
 
-    write_site_comparison_report(tests, daily_long)
+    write_site_comparison_report(tests, daily_long, ground_stats=ground_stats)
     save_site_comparison_figures(daily, monthly_long, tests)
+    save_ground_vs_cams_figures(paired)
 
     return {
         "verdict": environmental_verdict(tests),
         "tests": tests,
+        "ground_stats": ground_stats,
         "daily_rows": len(daily),
         "sites": {k: provisional_label(k) for k in COMPARISON_SITE_KEYS},
     }

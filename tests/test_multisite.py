@@ -15,7 +15,7 @@ from spis.inverter_anomaly import (
     compute_relative_performance,
     rank_inverters,
 )
-from spis.site_comparison import run_pollution_difference_tests
+from spis.site_comparison import compare_ground_to_cams, run_pollution_difference_tests
 from spis.sites import DEFAULT_SITE, SITES, get_site, site_processed_path
 
 CANAKKALE_MASTER_HASH = "bd1b07716649028b016f26d381216c6553c0ccc370ff2bd0cb88b61586c2c552"
@@ -83,6 +83,30 @@ def test_site_comparison_difference_test_on_synthetic_data() -> None:
     core = tests.loc[tests["variable"].isin(("pm10", "dust", "aerosol_optical_depth"))]
     assert core["balikesir_lower_significant"].all()
     assert (core["median_balikesir"] < core["median_canakkale"]).all()
+
+
+def test_ground_cams_comparison_on_synthetic_data() -> None:
+    dates = pd.date_range("2023-06-01", periods=90, freq="D")
+    ground = pd.DataFrame(
+        {
+            "date": dates,
+            "pm10": np.linspace(40, 60, len(dates))
+            + np.random.default_rng(1).normal(0, 3, len(dates)),
+            "station_code": ["TR170141"] * len(dates),
+            "station_name": ["Canakkale"] * len(dates),
+        }
+    )
+    cams = pd.DataFrame(
+        {
+            "date": dates,
+            "pm10": np.linspace(10, 14, len(dates))
+            + np.random.default_rng(2).normal(0, 1, len(dates)),
+        }
+    )
+    stats = compare_ground_to_cams(ground, cams, "canakkale", pollutant="pm10")
+    assert stats["n_pairs"] == len(dates)
+    assert stats["median_bias_ground_minus_cams"] > 20
+    assert stats["pearson_r"] > 0.5
 
 
 def test_inverter_relative_performance_ranking() -> None:
