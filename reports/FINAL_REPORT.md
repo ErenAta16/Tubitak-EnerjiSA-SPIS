@@ -41,12 +41,12 @@ CAMS PM10 accumulated HAC p = 0.727; ground PM10
 accumulated HAC p = 0.928 (Canakkale Merkez
 UHKIA, urban proxy ~40-60 km from plant). Daily raw ground PM10 is reported in
 SOILING_ROBUSTNESS.md as a sensitivity check only. Segment-level correlations (n=7)
-and RF permutation ranks are **weak, non-confirmatory** signals only.
+are **weak, non-confirmatory** signals only.
 
-The reframed soiling_ratio RF test R2 is **-0.5585** (legacy
-absolute-PI R2 = -0.7842). Permutation
-importances are **not evidence** for a pollution driver; any mid-ranked dust feature
-may reflect season/collinearity, not causation.
+The P13 panel (15 algorithms, all blocked CV R2 negative)
+does not generalize beyond the days_since_wash trend; permutation importance was not
+reported. Held-out RF soiling_ratio test R2 is **-0.5585** (legacy
+absolute-PI R2 = -0.7842).
 
 ## Rain natural cleaning
 
@@ -75,7 +75,7 @@ within-segment **soiling_ratio** (P12 fair framing). Best blocked CV R2 =
 **-0.4396 +/- 0.5911** (P13 best: svr_rbf). Any model
 with CV R2 >= 0: **False**. Held-out RF
 soiling_ratio test R2 = **-0.5585** (legacy absolute-PI
-RF R2 = **-0.7842**). No algorithm in the 15-model panel achieves non-negative blocked CV R2 **and** beats the days_since_wash trend on held-o
+RF R2 = **-0.7842**). No algorithm in the 15-model panel achieves non-negative blocked CV R2 **and** beats the days_since_wash trend on held-out test. No model reaches CV R2 >= 0; Best CV R2: **svr_rbf** (-0.4396 +/- 0.5911). The negative ML finding now holds across linear, kernel, tree, boosting, and neural families — the simple physical trend suffices.
 
 ## Limitations
 
@@ -98,4 +98,3 @@ RF R2 = **-0.7842**). No algorithm in the 15-model panel achieves non-negative b
 - **optimize_cost_vs_interval**: Total cost vs wash interval at real 2023 PTF central case
 - **optimize_t_star_heatmap**: T* heatmap over wash cost and ASSUMED PTF sweep
 - **optimize_actual_vs_optimal**: Actual vs model-optimal inter-wash cadence
-- **ml_permutation_importance**: RF permutation importance (model test R2 negative)

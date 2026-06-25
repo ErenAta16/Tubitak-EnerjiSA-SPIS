@@ -1,4 +1,4 @@
-# SPIS product description (v1.0)
+# SPIS product description (v1.1)
 
 ## Purpose
 
@@ -74,7 +74,8 @@ Canakkale keeps legacy flat processed paths for regression compatibility.
   check documented in `reports/SITE_COMPARISON.md`.
 - P4 wash cost is **ASSUMED**; PTF central uses real 2023 only unless extended CSVs
   are supplied.
-- P5 ML test performance is poor; not used for scheduling decisions.
+- P5–P13 ML: 15-algorithm panel on fair soiling_ratio target; all blocked CV R²
+  negative — not used for scheduling decisions.
 - P6 inverter ranking is **descriptive**, not diagnostic.
 - Balikesir site coordinates and Bandirma ground-station proxy are **PROVISIONAL**.
 

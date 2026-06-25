@@ -11,18 +11,19 @@ between washes, and what washing interval minimizes total cost?
 
 ## Headline findings (honest)
 
-- **Soiling rate (Canakkale):** clear-sky pooled loss ~0.05%/day (P3.5); modest and
-  not driven by daily CAMS pollution at grid scale.
-- **Optimal wash interval T*:** ~99 days at real 2023 EPIAS PTF (assumed wash cost);
-  true interval may be shorter if the reference irradiance sensor co-soils.
-- **Pollution vs performance:** daily HAC tests do not support pollution as a primary
-  driver; ground-station PM10 at Canakkale is much higher than CAMS grid values.
+- **Soiling rate (Canakkale):** clear-sky pooled **-0.125 %/day** (P3.5); modest seasonal
+  loss, not driven by daily pollution at grid or ground-station scale.
+- **Optimal wash interval T*:** **99 days** at real 2023 EPIAS PTF (assumed wash cost);
+  true interval may differ if the reference irradiance sensor co-soils.
+- **Pollution vs performance:** daily HAC null with **both CAMS and in-situ ground PM10**
+  (P11); CAMS attenuation concern resolved.
 - **Balikesir vs Canakkale (CAMS):** PROVISIONAL Balikesir coordinates are **not**
   consistently cleaner than Canakkale in gridded CAMS — proposal premise not supported
   at the placeholder point.
 - **Inverters (descriptive):** INV2 ranks lowest vs daily peer median on meaningful-
   irradiance days; not fault diagnosis.
-- **ML (P5):** test R² negative; documented as exploratory only.
+- **ML (P5/P12/P13):** 15-algorithm panel on fair soiling_ratio target; **all blocked
+  CV R² negative** — simple physical trend suffices; not used for scheduling.
 
 ## Data sources
 
@@ -65,7 +66,7 @@ price.
 
 ## Run instructions
 
-**Full v1.0 pipeline (one command):**
+**Full pipeline (one command):**
 
 ```bash
 python -m spis.run --stage all
@@ -102,5 +103,9 @@ See [docs/INDEX.md](docs/INDEX.md) for all written outputs.
 
 ## Release
 
-Tagged releases: `v1.0` — first packaged SPIS deliverable with multi-site support,
-ground AQ cross-check, and one-command reproducibility.
+Tagged releases:
+
+- **v1.1** — P11–P13 report alignment: in-situ pollution null, fair ML reframing, and
+  15-model algorithm panel (matches current `main` reports).
+- **v1.0** — first packaged SPIS deliverable with multi-site support, ground AQ
+  cross-check, and one-command reproducibility.

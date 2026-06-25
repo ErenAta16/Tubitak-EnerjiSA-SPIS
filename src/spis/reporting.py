@@ -57,7 +57,6 @@ FIGURE_MANIFEST: tuple[tuple[str, str], ...] = (
     ("optimize_cost_vs_interval", "Total cost vs wash interval at real 2023 PTF central case"),
     ("optimize_t_star_heatmap", "T* heatmap over wash cost and ASSUMED PTF sweep"),
     ("optimize_actual_vs_optimal", "Actual vs model-optimal inter-wash cadence"),
-    ("ml_permutation_importance", "RF permutation importance (model test R2 negative)"),
 )
 
 FORBIDDEN_REPORT_PATTERNS: tuple[str, ...] = (
@@ -235,7 +234,7 @@ def collect_headline_metrics() -> pd.DataFrame:
         ),
         (
             "ml_verdict",
-            str(ml_verdict_row["verdict"])[:120],
+            str(ml_verdict_row["verdict"]),
             "text",
             "P13 multi-family panel",
         ),
@@ -385,12 +384,12 @@ CAMS PM10 accumulated HAC p = {m['pollution_pm10_hac_p_value'].value}; ground PM
 accumulated HAC p = {m['pollution_ground_pm10_hac_p_value'].value} (Canakkale Merkez
 UHKIA, urban proxy ~40-60 km from plant). Daily raw ground PM10 is reported in
 SOILING_ROBUSTNESS.md as a sensitivity check only. Segment-level correlations (n=7)
-and RF permutation ranks are **weak, non-confirmatory** signals only.
+are **weak, non-confirmatory** signals only.
 
-The reframed soiling_ratio RF test R2 is **{m['rf_test_r2'].value}** (legacy
-absolute-PI R2 = {m['ml_absolute_pi_rf_test_r2'].value}). Permutation
-importances are **not evidence** for a pollution driver; any mid-ranked dust feature
-may reflect season/collinearity, not causation.
+The P13 panel ({m['ml_panel_model_count'].value} algorithms, all blocked CV R2 negative)
+does not generalize beyond the days_since_wash trend; permutation importance was not
+reported. Held-out RF soiling_ratio test R2 is **{m['rf_test_r2'].value}** (legacy
+absolute-PI R2 = {m['ml_absolute_pi_rf_test_r2'].value}).
 
 ## Rain natural cleaning
 

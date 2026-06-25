@@ -148,7 +148,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--stage",
         choices=(*STAGES, "all"),
         required=True,
-        help="Pipeline stage to run, or 'all' for the full v1.0 chain.",
+        help="Pipeline stage to run, or 'all' for the full reproducible chain.",
     )
     return parser.parse_args(argv)
 
@@ -162,7 +162,7 @@ def run_stage(stage: str) -> None:
 
 
 def run_all_stages() -> None:
-    """Run the full reproducible SPIS v1.0 pipeline."""
+    """Run the full reproducible SPIS pipeline (ingest through field_visit)."""
     for stage in ALL_STAGES:
         run_stage(stage)
 
