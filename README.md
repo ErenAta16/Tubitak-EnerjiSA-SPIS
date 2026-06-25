@@ -87,7 +87,19 @@ python -m spis.run --stage report
 python -m spis.run --stage site_comparison
 python -m spis.run --stage inverter_anomaly
 python -m spis.run --stage field_visit
+python -m spis.run --stage external_validation
 ```
+
+**Web UI (optional Streamlit; not required for the core pipeline):**
+
+```bash
+pip install -r requirements-ui.txt
+streamlit run app/streamlit_app.py
+```
+
+For [Streamlit Community Cloud](https://streamlit.io/cloud), point the app entry to
+`app/streamlit_app.py`, keep secrets out of the repo, and upload plant CSVs or rely on
+precomputed example outputs from a local `--stage all` run.
 
 **Quality gates:**
 

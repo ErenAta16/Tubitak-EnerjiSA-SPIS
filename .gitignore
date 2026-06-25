@@ -26,3 +26,4 @@ __pycache__/
 /*.kmz
 /*.txt
 !requirements.txt
+!requirements-ui.txt
