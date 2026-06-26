@@ -8,6 +8,7 @@ from typing import Any
 
 import pandas as pd
 
+from app.models import DashboardSnapshot
 from spis import config
 from spis.demo_plant import (
     DEMO_PLANT_KEY,
@@ -32,7 +33,6 @@ from spis.optimize import (
 from spis.robustness import ROBUSTNESS_OUTPUT_NAME
 from spis.sites import DEFAULT_SITE, get_site, site_processed_path
 from spis.soiling import MASTER_INPUT_NAME, SOILING_OUTPUT_NAME
-from spis.ui_analysis import analyze_upload_frame, sample_upload_csv_bytes
 
 REQUIRED_UPLOAD_COLUMNS = ("date", "production", "irradiation")
 
@@ -52,25 +52,6 @@ class UploadValidation:
     ok: bool
     message: str
     frame: pd.DataFrame | None = None
-
-
-@dataclass(frozen=True)
-class DashboardSnapshot:
-    """Bundle of headline metrics for one site."""
-
-    site_key: str
-    site_name: str
-    available: bool
-    message: str
-    clear_sky_rate_pct_per_day: float | None
-    clear_sky_ci_lower: float | None
-    clear_sky_ci_upper: float | None
-    pollution_verdict: str
-    daily_energy_kwh: float | None
-    rate_band: SoilingRateBand | None
-    master: pd.DataFrame | None
-    comparison_table: pd.DataFrame | None = None
-    plain_language_soiling: str = ""
 
 
 def example_site_available(site_key: str) -> bool:
@@ -193,6 +174,7 @@ def load_demo_dashboard_snapshot() -> DashboardSnapshot:
         )
     metrics = load_demo_headline_metrics()
     master = pd.read_parquet(demo_artifact_path(MASTER_INPUT_NAME))
+    segments = pd.read_parquet(demo_artifact_path(SOILING_OUTPUT_NAME))
     rate = metrics["clear_sky_rate_pct_per_day"]
     return DashboardSnapshot(
         site_key=DEMO_PLANT_KEY,
@@ -206,6 +188,7 @@ def load_demo_dashboard_snapshot() -> DashboardSnapshot:
         daily_energy_kwh=metrics["daily_energy_kwh"],
         rate_band=metrics["rate_band"],
         master=master,
+        segments=segments,
         plain_language_soiling=plain_language_soiling_line(rate, "EN"),
     )
 
@@ -256,6 +239,7 @@ def load_dashboard_snapshot(site_key: str) -> DashboardSnapshot:
             daily_energy_kwh=daily_energy,
             rate_band=rate_band,
             master=master,
+            segments=segments,
             comparison_table=comparison,
             plain_language_soiling=plain_language_soiling_line(rate, "EN"),
         )
@@ -273,6 +257,7 @@ def load_dashboard_snapshot(site_key: str) -> DashboardSnapshot:
             daily_energy_kwh=None,
             rate_band=None,
             master=master,
+            segments=segments,
         )
 
     alice_rows = comparison.loc[comparison["site_key"] == ALICE_SPRINGS_SITE_KEY]
@@ -306,6 +291,7 @@ def load_dashboard_snapshot(site_key: str) -> DashboardSnapshot:
         daily_energy_kwh=daily_energy,
         rate_band=rate_band,
         master=master,
+        segments=segments,
         comparison_table=comparison,
         plain_language_soiling=plain_language_soiling_line(rate, "EN"),
     )
@@ -327,8 +313,11 @@ def load_upload_dashboard_snapshot(frame: pd.DataFrame) -> DashboardSnapshot:
             daily_energy_kwh=None,
             rate_band=None,
             master=None,
+            segments=None,
         )
     try:
+        from app.upload_analysis import analyze_upload_frame
+
         analysis = analyze_upload_frame(validation.frame)
     except ValueError as exc:
         return DashboardSnapshot(
@@ -343,20 +332,22 @@ def load_upload_dashboard_snapshot(frame: pd.DataFrame) -> DashboardSnapshot:
             daily_energy_kwh=None,
             rate_band=None,
             master=None,
+            segments=None,
         )
-    rate = analysis["clear_sky_rate_pct_per_day"]
+    rate = analysis.clear_sky_rate_pct_per_day
     return DashboardSnapshot(
         site_key="upload",
         site_name="Uploaded data",
         available=True,
         message=validation.message,
         clear_sky_rate_pct_per_day=rate,
-        clear_sky_ci_lower=analysis["clear_sky_ci_lower"],
-        clear_sky_ci_upper=analysis["clear_sky_ci_upper"],
-        pollution_verdict=analysis["pollution_verdict"],
-        daily_energy_kwh=analysis["daily_energy_kwh"],
-        rate_band=analysis["rate_band"],
-        master=analysis["master"],
+        clear_sky_ci_lower=analysis.clear_sky_ci_lower,
+        clear_sky_ci_upper=analysis.clear_sky_ci_upper,
+        pollution_verdict=analysis.pollution_verdict,
+        daily_energy_kwh=analysis.daily_energy_kwh,
+        rate_band=analysis.rate_band,
+        master=analysis.master,
+        segments=analysis.segments,
         plain_language_soiling=plain_language_soiling_line(rate, "EN"),
     )
 
@@ -451,4 +442,6 @@ def list_downloadable_figures() -> list[Path]:
 
 def get_sample_upload_csv_bytes() -> bytes:
     """Expose upload template bytes for the Streamlit download button."""
+    from app.upload_analysis import sample_upload_csv_bytes
+
     return sample_upload_csv_bytes()

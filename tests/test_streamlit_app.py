@@ -7,6 +7,7 @@ import importlib
 import pandas as pd
 import pytest
 
+from app.sample_data import load_sample_upload_snapshot
 from app.ui_logic import (
     build_results_summary_markdown,
     compute_live_optimization,
@@ -69,6 +70,7 @@ def test_demo_plant_dashboard_headless_end_to_end() -> None:
     assert snap.rate_band is not None
     assert snap.clear_sky_rate_pct_per_day is not None
     assert snap.master is not None
+    assert snap.segments is not None
     optimization = compute_live_optimization(
         150_000,
         1500,
@@ -91,9 +93,31 @@ def test_upload_mode_computes_soiling_rate() -> None:
     )
     snap = load_upload_dashboard_snapshot(frame)
     assert snap.available
+    assert snap.segments_frame() is not None
+    assert snap.segment_count() >= 1
     assert snap.clear_sky_rate_pct_per_day is not None
     assert snap.rate_band is not None
     assert snap.clear_sky_ci_lower is not None
+
+
+def test_upload_analysis_returns_segments_in_structured_result() -> None:
+    from io import BytesIO
+
+    from app.upload_analysis import analyze_upload_frame, sample_upload_csv_bytes
+
+    frame = pd.read_csv(BytesIO(sample_upload_csv_bytes()))
+    result = analyze_upload_frame(frame)
+    assert len(result.segments) >= 1
+    assert result.clear_sky_rate_pct_per_day < 0
+
+
+def test_sample_upload_snapshot_has_negative_soiling_rate() -> None:
+    snap = load_sample_upload_snapshot()
+    assert snap.available
+    assert snap.site_key == "sample_upload"
+    assert snap.segments_frame() is not None
+    assert snap.clear_sky_rate_pct_per_day is not None
+    assert snap.clear_sky_rate_pct_per_day < 0
 
 
 def test_example_site_list_defaults_to_demo() -> None:
@@ -109,7 +133,9 @@ def test_load_canakkale_dashboard_when_processed_data_exists() -> None:
     assert snap.rate_band is not None
 
 
-def test_streamlit_app_imports_without_data_processed(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+def test_streamlit_app_imports_without_data_processed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
     monkeypatch.setattr(
         "spis.config.DATA_PROCESSED",
         tmp_path / "missing_processed",

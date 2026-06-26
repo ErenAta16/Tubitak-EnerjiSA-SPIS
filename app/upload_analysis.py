@@ -1,7 +1,8 @@
-"""Upload-mode analysis for the SPIS package."""
+"""Upload-mode analysis for the Streamlit UI (lives under app/ to avoid stale spis imports)."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -10,7 +11,7 @@ import pandas as pd
 from spis import config
 from spis.clean import join_washing_segments
 from spis.demo_plant import build_demo_robustness_snapshot
-from spis.optimize import compute_clean_baseline_energy, load_soiling_rate_band
+from spis.optimize import SoilingRateBand, compute_clean_baseline_energy, load_soiling_rate_band
 from spis.robustness import canonical_clear_sky_pooled, compare_clear_sky_slopes
 from spis.soiling import build_soiling_segments
 
@@ -18,6 +19,20 @@ UPLOAD_WASH_INTERVAL_DAYS = 85
 SAMPLE_SOILING_RATE_PCT_PER_DAY = -0.15
 SAMPLE_UPLOAD_DAYS = 120
 SAMPLE_UPLOAD_SEED = 7
+
+
+@dataclass(frozen=True)
+class UploadAnalysisResult:
+    """Structured output from upload CSV soiling analysis."""
+
+    master: pd.DataFrame
+    segments: pd.DataFrame
+    clear_sky_rate_pct_per_day: float
+    clear_sky_ci_lower: float
+    clear_sky_ci_upper: float
+    pollution_verdict: str
+    daily_energy_kwh: float
+    rate_band: SoilingRateBand
 
 
 def build_upload_washing_events(dates: pd.Series) -> pd.DataFrame:
@@ -46,6 +61,7 @@ def build_upload_washing_events(dates: pd.Series) -> pd.DataFrame:
 def prepare_upload_master(frame: pd.DataFrame) -> pd.DataFrame:
     """Build a master-like table from validated upload columns."""
     working = frame.sort_values("date").copy()
+    working["date"] = pd.to_datetime(working["date"], errors="coerce").dt.normalize()
     working["pi"] = working["production"] / working["irradiation"]
     working["pi_temp_corrected"] = working["pi"]
     working["is_downtime"] = False
@@ -71,7 +87,7 @@ def prepare_upload_master(frame: pd.DataFrame) -> pd.DataFrame:
     return join_washing_segments(working, washing)
 
 
-def analyze_upload_frame(frame: pd.DataFrame) -> dict[str, Any]:
+def analyze_upload_frame(frame: pd.DataFrame) -> UploadAnalysisResult:
     """Compute clear-sky soiling metrics and optimizer inputs from upload CSV."""
     master = prepare_upload_master(frame)
     washing = build_upload_washing_events(master["date"])
@@ -97,16 +113,16 @@ def analyze_upload_frame(frame: pd.DataFrame) -> dict[str, Any]:
     daily_energy = float(baseline["clean_baseline_kwh_day"].median())
     half = float(clear_pooled["ci_half_width"])
     rate = float(clear_pooled["pooled_rate"])
-    return {
-        "master": master,
-        "segments": segments,
-        "clear_sky_rate_pct_per_day": rate,
-        "clear_sky_ci_lower": rate - half,
-        "clear_sky_ci_upper": rate + half,
-        "pollution_verdict": str(robustness.iloc[0]["pollution_verdict"]),
-        "daily_energy_kwh": daily_energy,
-        "rate_band": rate_band,
-    }
+    return UploadAnalysisResult(
+        master=master,
+        segments=segments,
+        clear_sky_rate_pct_per_day=rate,
+        clear_sky_ci_lower=rate - half,
+        clear_sky_ci_upper=rate + half,
+        pollution_verdict=str(robustness.iloc[0]["pollution_verdict"]),
+        daily_energy_kwh=daily_energy,
+        rate_band=rate_band,
+    )
 
 
 def build_sample_upload_frame(

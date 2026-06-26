@@ -24,4 +24,7 @@ select = ["E", "F", "I", "UP"]
 fixable = ["ALL"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["spis"]
+known-first-party = ["spis", "app"]
+
+[tool.ruff.lint.per-file-ignores]
+"app/streamlit_app.py" = ["E402"]

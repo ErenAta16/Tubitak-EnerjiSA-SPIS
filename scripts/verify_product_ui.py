@@ -42,7 +42,7 @@ def verify_product_ui() -> bool:
             failures.append(f"Proprietary data path tracked: {line}")
 
     req = (ROOT / "requirements-streamlit.txt").read_text(encoding="utf-8")
-    for package in ("streamlit", "statsmodels", "matplotlib", "pyarrow"):
+    for package in ("streamlit", "statsmodels", "matplotlib", "plotly", "pyarrow"):
         if package not in req:
             failures.append(f"requirements-streamlit.txt missing {package}")
 
