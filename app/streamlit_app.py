@@ -8,6 +8,9 @@ SOURCE_EXAMPLE = "example"
 SOURCE_UPLOAD = "upload"
 SOURCE_OPTIONS = (SOURCE_EXAMPLE, SOURCE_UPLOAD)
 LANG_OPTIONS = ("TR", "EN")
+DATA_USE_URL = (
+    "https://github.com/ErenAta16/Tubitak-EnerjiSA-SPIS/blob/main/DATA_USE.md"
+)
 
 
 def _refresh_app_modules() -> None:
@@ -30,15 +33,14 @@ from app.charts import (
     segment_slopes_figure,
 )
 from app.display_i18n import (
-    format_headline_ci,
     format_headline_rate,
     format_t_star_days,
     site_label,
-    snapshot_status_line,
     translate_backend_message,
     translate_pollution_verdict,
+    validation_status_line,
 )
-from app.models import SAMPLE_UPLOAD_KEY, DashboardSnapshot
+from app.models import DashboardSnapshot
 from app.sample_data import load_sample_upload_snapshot
 from app.tables import format_comparison_table, format_data_preview, format_segments_table
 from app.ui_logic import (
@@ -54,7 +56,7 @@ from app.ui_logic import (
 )
 from spis import config
 
-UI_BUILD = "2026-06-26-p20-ui-polish"
+UI_BUILD = "2026-06-25-p21-ui-redesign"
 
 st.set_page_config(page_title="SPIS", layout="wide", initial_sidebar_state="expanded")
 
@@ -62,71 +64,35 @@ TEXT = {
     "language_label": ("Language", "Dil"),
     "language_tr": ("Turkish", "Türkçe"),
     "language_en": ("English", "English"),
-    "ui_build": ("UI build", "UI sürümü"),
-    "title": (
-        "SPIS — Solar Performance Improvement System",
-        "SPIS — Güneş Performans İyileştirme Sistemi",
-    ),
-    "subtitle": (
+    "tagline": (
         "Estimate soiling loss between washes and a cost-optimal wash interval.",
         "Yıkamalar arası kirlenme kaybını ve maliyet-optimal yıkama aralığını tahmin edin.",
     ),
-    "how_title": ("How it works", "Nasıl çalışır"),
-    "how_steps": (
-        [
-            "1. Load daily production and irradiation (or use the synthetic demo).",
-            "2. Keep clear-sky days and fit soiling trends between washes.",
-            "3. Estimate the daily performance drop rate (%/day) with uncertainty.",
-            "4. Compare pollution indicators (when available).",
-            "5. Pick wash cost and electricity price to find the economic optimum T*.",
-        ],
-        [
-            "1. Günlük üretim ve ışınım verisini yükleyin (veya sentetik demoyu kullanın).",
-            "2. Açık gökyüzü günlerini seçip yıkamalar arası trendi uydurun.",
-            "3. Günlük performans düşüş hızını (%/gün) belirsizlikle tahmin edin.",
-            "4. Kirlilik göstergelerini karşılaştırın (varsa).",
-            "5. Yıkama maliyeti ve elektrik fiyatı ile ekonomik optimum T* bulun.",
-        ],
-    ),
-    "data_header": ("Data", "Veri"),
+    "demo_pill": ("demo", "demo"),
     "input_source": ("Input source", "Veri kaynağı"),
-    "source_example": ("Example site", "Örnek santral"),
+    "source_example": ("Example", "Örnek"),
     "source_upload": ("Upload CSV", "CSV yükle"),
     "site_label": ("Site", "Santral"),
     "download_sample_csv": ("Download sample CSV", "Örnek CSV indir"),
-    "required_columns": (
-        "Required columns: date, production, irradiation",
-        "Gerekli sütunlar: date, production, irradiation",
-    ),
-    "csv_format_hint": (
-        "Example row: date,production,irradiation",
-        "Örnek satır: date,production,irradiation",
-    ),
-    "csv_format_example": (
-        "date,production,irradiation\n2024-01-01,3400.0,4000.0",
-        "date,production,irradiation\n2024-01-01,3400.0,4000.0",
+    "sidebar_columns": (
+        "Columns: date, production, irradiation",
+        "Sütunlar: date, production, irradiation",
     ),
     "upload_file_label": ("Daily CSV file", "Günlük CSV dosyası"),
     "overview": ("Overview", "Özet"),
     "charts": ("Charts", "Grafikler"),
     "segments": ("Segments", "Segmentler"),
     "economy": ("Economics", "Ekonomi"),
-    "data_tab": ("Data table", "Veri tablosu"),
-    "soiling": ("Soiling rate (clear-sky)", "Kirlenme hızı (açık gökyüzü)"),
-    "soiling_help": (
-        "Negative %/day means performance index falls between washes on sunny days.",
-        "Negatif %/gün, güneşli günlerde performans endeksinin yıkamalar arasında "
-        "düştüğünü gösterir.",
+    "data_tab": ("Data", "Veri"),
+    "hero_soiling_label": (
+        "Soiling rate — clear sky",
+        "Kirlenme hızı — açık gökyüzü",
     ),
-    "ci_label": ("95% CI", "95% GA"),
-    "energy_label": ("Median daily energy", "Günlük enerji (medyan)"),
-    "energy_help": (
-        "Typical clean-day energy used for the economic optimizer (not plant nameplate).",
-        "Ekonomik optimizasyon için kullanılan tipik temiz-gün enerjisi (nominal kapasite değil).",
-    ),
+    "energy_label": ("Daily energy", "Günlük enerji"),
     "energy_unit": ("kWh", "kWh"),
     "segments_count": ("Wash segments", "Yıkama segmenti"),
-    "days_count": ("daily rows", "günlük satır"),
+    "date_range_label": ("Data range", "Veri aralığı"),
+    "days_unit": ("days", "gün"),
     "na": ("n/a", "yok"),
     "optimizer": ("Economic optimizer", "Ekonomik optimizasyon"),
     "wash_cost": ("Wash cost (TL)", "Yıkama maliyeti (TL)"),
@@ -136,16 +102,11 @@ TEXT = {
         "Minimum total daily cost (lost energy + amortized wash cost).",
         "Minimum günlük toplam maliyet (enerji kaybı + yıkama maliyeti).",
     ),
-    "days_unit": ("days", "gün"),
     "pollution": ("Pollution test", "Kirlilik testi"),
     "comparison": ("Site comparison", "Santral karşılaştırması"),
     "waiting_upload": (
         "Choose an example site in the sidebar or upload a daily CSV.",
         "Sidebar'dan örnek santral seçin veya günlük CSV yükleyin.",
-    ),
-    "sample_preview": (
-        "Showing the built-in sample CSV below. Upload your own file to replace it.",
-        "Aşağıda gömülü örnek CSV gösteriliyor. Kendi dosyanızı yükleyerek değiştirin.",
     ),
     "no_timeseries": ("No time series available.", "Zaman serisi yok."),
     "no_segments_table": (
@@ -163,20 +124,20 @@ TEXT = {
         "Could not read the CSV file. Save as UTF-8 comma-separated text.",
         "CSV okunamadı. UTF-8 ve virgülle ayrılmış metin olarak kaydedin.",
     ),
-    "footer": (
-        "TUBITAK 2209-B research demo — code under MIT; plant data proprietary. See DATA_USE.md.",
-        "TUBITAK 2209-B araştırma demosu — kod MIT; santral verisi özel. DATA_USE.md.",
+    "ci_below_zero_caption": (
+        "Estimate is below zero — measurable soiling.",
+        "Tahmin sıfırın altında — ölçülebilir kirlenme.",
     ),
+    "footer_text": (
+        "TUBITAK 2209-B research demo · Code MIT · Plant data proprietary ·",
+        "TÜBİTAK 2209-B araştırma demosu · Kod MIT · Santral verisi özel ·",
+    ),
+    "footer_data_use": ("DATA_USE.md", "DATA_USE.md"),
 }
 
 
 def _t(key: str, lang: str) -> str:
     en, tr = TEXT[key]
-    return tr if lang == "TR" else en
-
-
-def _steps(lang: str) -> list[str]:
-    en, tr = TEXT["how_steps"]
     return tr if lang == "TR" else en
 
 
@@ -188,31 +149,137 @@ def _format_site_option(option: ExampleSiteOption, lang: str) -> str:
     return site_label(option.site_key, option.label)(lang)
 
 
+def _format_integer(value: float | int | None, *, lang: str, na: str) -> str:
+    if value is None:
+        return na
+    formatted = f"{int(round(value)):,}"
+    if lang == "TR":
+        formatted = formatted.replace(",", ".")
+    return formatted
+
+
 def inject_styles() -> None:
     st.markdown(
         """
         <style>
-        div[data-testid="stMetric"] {
+        .block-container {
+            padding-top: 1.25rem;
+            padding-bottom: 1.5rem;
+            max-width: 1100px;
+        }
+        section[data-testid="stSidebar"] .block-container {
+            padding-top: 1rem;
+        }
+        .spis-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.55rem;
+            margin-bottom: 1.25rem;
+        }
+        .spis-wordmark {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: #1f2328;
+        }
+        .spis-pill {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: lowercase;
+            color: #57606a;
             background: #f6f8fa;
             border: 1px solid #d0d7de;
-            border-radius: 0.5rem;
-            padding: 0.75rem 1rem;
+            border-radius: 999px;
+            padding: 0.1rem 0.55rem;
         }
-        .spis-hero {
-            background: linear-gradient(120deg, #f6f8fa 0%, #ffffff 100%);
+        .spis-tagline {
+            flex: 1 1 100%;
+            margin: 0;
+            font-size: 0.92rem;
+            color: #57606a;
+            line-height: 1.45;
+        }
+        .spis-validation {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            margin: 0 0 1rem 0;
+            font-size: 0.86rem;
+            color: #57606a;
+        }
+        .spis-validation-icon {
+            color: #1a7f37;
+            font-weight: 700;
+        }
+        .spis-hero-card {
+            background: #f6f8fa;
             border: 1px solid #d0d7de;
-            border-radius: 0.75rem;
-            padding: 1rem 1.25rem;
+            border-left: 4px solid #1f6feb;
+            border-radius: 0.5rem;
+            padding: 1.1rem 1.25rem 1rem;
             margin-bottom: 1rem;
         }
-        .spis-headline {
-            font-size: 1.25rem;
+        .spis-hero-label {
+            margin: 0 0 0.35rem 0;
+            font-size: 0.82rem;
             font-weight: 600;
-            margin: 0 0 1rem 0;
-            padding: 0.75rem 1rem;
-            background: #ddf4ff;
-            border: 1px solid #54aeff;
-            border-radius: 0.5rem;
+            color: #57606a;
+            letter-spacing: 0.01em;
+        }
+        .spis-hero-value {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1.15;
+            color: #1f2328;
+        }
+        .spis-hero-detail {
+            margin: 0.55rem 0 0 0;
+            font-size: 0.92rem;
+            color: #424a53;
+            line-height: 1.45;
+        }
+        .spis-chips {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+        }
+        .spis-chip {
+            background: #ffffff;
+            border: 1px solid #d0d7de;
+            border-radius: 0.45rem;
+            padding: 0.7rem 0.85rem;
+        }
+        .spis-chip-label {
+            margin: 0 0 0.2rem 0;
+            font-size: 0.75rem;
+            color: #57606a;
+        }
+        .spis-chip-value {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #1f2328;
+        }
+        .spis-footer {
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+            color: #8c959f;
+        }
+        .spis-footer a {
+            color: #57606a;
+            text-decoration: none;
+        }
+        .spis-footer a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 768px) {
+            .spis-chips {
+                grid-template-columns: 1fr;
+            }
         }
         </style>
         """,
@@ -220,30 +287,95 @@ def inject_styles() -> None:
     )
 
 
-def render_landing(lang: str) -> None:
+def render_compact_header(lang: str) -> None:
     st.markdown(
-        f"<div class='spis-hero'><h1 style='margin:0;padding:0;'>{_t('title', lang)}</h1>"
-        f"<p style='margin:0.35rem 0 0;color:#57606a;'>{_t('subtitle', lang)}</p></div>",
+        f"""
+        <div class="spis-header">
+            <span class="spis-wordmark">SPIS</span>
+            <span class="spis-pill">{_t("demo_pill", lang)}</span>
+            <p class="spis-tagline">{_t("tagline", lang)}</p>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
-    with st.expander(_t("how_title", lang), expanded=False):
-        for step in _steps(lang):
-            st.markdown(step)
+
+
+def render_validation_line(snapshot: DashboardSnapshot, lang: str) -> None:
+    message = validation_status_line(snapshot, lang)
+    st.markdown(
+        f"""
+        <p class="spis-validation">
+            <span class="spis-validation-icon" aria-hidden="true">✓</span>
+            <span>{message}</span>
+        </p>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_hero_and_chips(snapshot: DashboardSnapshot, lang: str) -> None:
+    rate = snapshot.clear_sky_rate_pct_per_day
+    na = _t("na", lang)
+    n_days = len(snapshot.master) if snapshot.master is not None else 0
+    n_segments = snapshot.segment_count()
+    rate_text = format_headline_rate(rate, na=na, lang=lang)
+    detail = plain_language_soiling_line(rate, lang)
+    energy_value = (
+        f"{_format_integer(snapshot.daily_energy_kwh, lang=lang, na=na)} {_t('energy_unit', lang)}"
+        if snapshot.daily_energy_kwh
+        else na
+    )
+    segments_value = _format_integer(n_segments, lang=lang, na=na) if n_segments else na
+    range_value = (
+        f"{_format_integer(n_days, lang=lang, na=na)} {_t('days_unit', lang)}"
+        if n_days
+        else na
+    )
+    st.markdown(
+        f"""
+        <div class="spis-hero-card">
+            <p class="spis-hero-label">{_t("hero_soiling_label", lang)}</p>
+            <p class="spis-hero-value">{rate_text}</p>
+            <p class="spis-hero-detail">{detail}</p>
+        </div>
+        <div class="spis-chips">
+            <div class="spis-chip">
+                <p class="spis-chip-label">{_t("energy_label", lang)}</p>
+                <p class="spis-chip-value">{energy_value}</p>
+            </div>
+            <div class="spis-chip">
+                <p class="spis-chip-label">{_t("segments_count", lang)}</p>
+                <p class="spis-chip-value">{segments_value}</p>
+            </div>
+            <div class="spis-chip">
+                <p class="spis-chip-label">{_t("date_range_label", lang)}</p>
+                <p class="spis-chip-value">{range_value}</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_footer(lang: str) -> None:
-    st.divider()
-    st.caption(
-        f"{_t('footer', lang)} · [DATA_USE.md](https://github.com/ErenAta16/Tubitak-EnerjiSA-SPIS/blob/main/DATA_USE.md)"
+    st.markdown(
+        f"""
+        <p class="spis-footer">
+            {_t("footer_text", lang)}
+            <a href="{DATA_USE_URL}">{_t("footer_data_use", lang)}</a>
+            · {UI_BUILD}
+        </p>
+        """,
+        unsafe_allow_html=True,
     )
 
 
 def load_input_snapshot(lang: str) -> DashboardSnapshot | None:
-    st.sidebar.header(_t("data_header", lang))
     source_key = st.sidebar.radio(
         _t("input_source", lang),
         SOURCE_OPTIONS,
         format_func=lambda key: _t(f"source_{key}", lang),
+        horizontal=True,
     )
     if source_key == SOURCE_EXAMPLE:
         options = list_example_site_options()
@@ -265,9 +397,7 @@ def load_input_snapshot(lang: str) -> DashboardSnapshot | None:
         file_name="spis_upload_template.csv",
         mime="text/csv",
     )
-    st.sidebar.caption(_t("required_columns", lang))
-    st.sidebar.caption(_t("csv_format_hint", lang))
-    st.sidebar.code(_t("csv_format_example", lang), language=None)
+    st.sidebar.caption(_t("sidebar_columns", lang))
     uploaded = st.sidebar.file_uploader(
         _t("upload_file_label", lang),
         type=["csv"],
@@ -285,52 +415,11 @@ def load_input_snapshot(lang: str) -> DashboardSnapshot | None:
     if not snapshot.available:
         st.error(translate_backend_message(snapshot.message, lang))
         return None
-    st.sidebar.success(translate_backend_message(snapshot.message, lang))
     return snapshot
-
-
-def render_headline_metrics(snapshot: DashboardSnapshot, lang: str) -> None:
-    rate = snapshot.clear_sky_rate_pct_per_day
-    n_days = len(snapshot.master) if snapshot.master is not None else 0
-    n_segments = snapshot.segment_count()
-    na = _t("na", lang)
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.metric(
-            _t("soiling", lang),
-            format_headline_rate(rate, na=na),
-            help=_t("soiling_help", lang),
-        )
-    with c2:
-        st.metric(
-            _t("ci_label", lang),
-            format_headline_ci(snapshot.clear_sky_ci_lower, snapshot.clear_sky_ci_upper, na=na),
-        )
-    with c3:
-        energy = (
-            f"{snapshot.daily_energy_kwh:,.0f} {_t('energy_unit', lang)}"
-            if snapshot.daily_energy_kwh
-            else na
-        )
-        st.metric(
-            _t("energy_label", lang),
-            energy,
-            help=_t("energy_help", lang),
-        )
-    with c4:
-        st.metric(
-            _t("segments_count", lang),
-            f"{n_segments}" if n_segments else na,
-            delta=f"{n_days} {_t('days_count', lang)}" if n_days else None,
-        )
 
 
 def render_overview_tab(snapshot: DashboardSnapshot, lang: str) -> None:
     rate = snapshot.clear_sky_rate_pct_per_day
-    st.markdown(
-        f"<p class='spis-headline'>{plain_language_soiling_line(rate, lang)}</p>",
-        unsafe_allow_html=True,
-    )
     st.markdown(f"**{_t('pollution', lang)}**")
     st.write(translate_pollution_verdict(snapshot.pollution_verdict, lang))
     if (
@@ -342,6 +431,8 @@ def render_overview_tab(snapshot: DashboardSnapshot, lang: str) -> None:
             rate_ci_figure(rate, snapshot.clear_sky_ci_lower, snapshot.clear_sky_ci_upper, lang),
             use_container_width=True,
         )
+        if rate < 0:
+            st.caption(_t("ci_below_zero_caption", lang))
     if snapshot.comparison_table is not None:
         st.markdown(f"**{_t('comparison', lang)}**")
         comparison = format_comparison_table(snapshot.comparison_table, lang)
@@ -374,25 +465,7 @@ def render_segments_tab(snapshot: DashboardSnapshot, lang: str) -> None:
     if table is None:
         st.info(_t("no_segments_table", lang))
         return
-    skip_cols = {
-        "Segment",
-        "Start",
-        "End",
-        "Başlangıç",
-        "Bitiş",
-        "Low confidence",
-        "Düşük güven",
-    }
-    st.dataframe(
-        table,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            col: st.column_config.NumberColumn(format="%.4f")
-            for col in table.columns
-            if col not in skip_cols
-        },
-    )
+    st.dataframe(table, use_container_width=True, hide_index=True)
 
 
 def render_economy_tab(snapshot: DashboardSnapshot, lang: str) -> dict | None:
@@ -446,10 +519,8 @@ def render_dashboard(snapshot: DashboardSnapshot, lang: str) -> None:
         st.warning(translate_backend_message(snapshot.message, lang))
         return
 
-    st.success(snapshot_status_line(snapshot, lang))
-    if snapshot.site_key == SAMPLE_UPLOAD_KEY:
-        st.info(_t("sample_preview", lang))
-    render_headline_metrics(snapshot, lang)
+    render_validation_line(snapshot, lang)
+    render_hero_and_chips(snapshot, lang)
 
     tab_overview, tab_charts, tab_segments, tab_economy, tab_data = st.tabs(
         [
@@ -493,8 +564,7 @@ def main() -> None:
         format_func=_language_name,
         key="ui_lang",
     )
-    st.sidebar.caption(f"{_t('ui_build', lang)}: {UI_BUILD}")
-    render_landing(lang)
+    render_compact_header(lang)
     snapshot = load_input_snapshot(lang)
     if snapshot is not None and snapshot.available:
         render_dashboard(snapshot, lang)

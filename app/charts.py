@@ -10,12 +10,21 @@ from plotly.subplots import make_subplots
 
 BRAND = "#1f6feb"
 MUTED = "#57606a"
-POSITIVE = "#1a7f37"
-NEGATIVE = "#cf222e"
+ACCENT_FILL = "rgba(31, 111, 235, 0.16)"
+TRACK = "#d0d7de"
 
 
 def _lang(lang: str, en: str, tr: str) -> str:
     return tr if lang == "TR" else en
+
+
+def _rate_unit(lang: str) -> str:
+    return "%/gün" if lang == "TR" else "%/day"
+
+
+def _rate_hover_template(lang: str) -> str:
+    unit = _rate_unit(lang)
+    return f"%{{x:.2f}} {unit}<extra></extra>"
 
 
 def pi_timeline_figure(master: pd.DataFrame, lang: str = "EN") -> go.Figure:
@@ -106,29 +115,28 @@ def segment_slopes_figure(segments: pd.DataFrame, lang: str = "EN") -> go.Figure
     frame = segments.sort_values("segment_id").copy()
     if frame.empty:
         return go.Figure()
-    colors = [
-        NEGATIVE if rate < 0 else POSITIVE
-        for rate in frame["soiling_rate_pct_per_day"].fillna(0.0)
-    ]
+    labels = [str(int(seg_id)) for seg_id in frame["segment_id"]]
+    lower_err = frame["soiling_rate_pct_per_day"] - frame["soiling_rate_ci_lower"]
+    upper_err = frame["soiling_rate_ci_upper"] - frame["soiling_rate_pct_per_day"]
     fig = go.Figure(
         data=[
             go.Bar(
-                x=frame["segment_id"].astype(str),
+                x=labels,
                 y=frame["soiling_rate_pct_per_day"],
-                marker={"color": colors},
+                marker={"color": BRAND, "line": {"width": 0}},
+                width=0.35,
                 error_y={
                     "type": "data",
                     "symmetric": False,
-                    "arrayminus": frame["soiling_rate_pct_per_day"]
-                    - frame["soiling_rate_ci_lower"],
-                    "array": frame["soiling_rate_ci_upper"]
-                    - frame["soiling_rate_pct_per_day"],
+                    "arrayminus": lower_err,
+                    "array": upper_err,
+                    "thickness": 1.2,
+                    "width": 4,
                     "color": MUTED,
                 },
                 hovertemplate=(
-                    "Segment %{x}<br>"
-                    + _lang(lang, "Rate", "Hız")
-                    + "=%{y:.3f} %/day<extra></extra>"
+                    f"{_lang(lang, 'Segment', 'Segment')} %{{x}}<br>"
+                    f"{_lang(lang, 'Rate', 'Hız')}=%{{y:.2f}} {_rate_unit(lang)}<extra></extra>"
                 ),
             )
         ]
@@ -138,7 +146,12 @@ def segment_slopes_figure(segments: pd.DataFrame, lang: str = "EN") -> go.Figure
         height=340,
         margin={"l": 40, "r": 20, "t": 40, "b": 40},
         title=_lang(lang, "Soiling rate by wash segment", "Yıkama segmentine göre kirlenme"),
-        xaxis_title=_lang(lang, "Segment", "Segment"),
+        xaxis={
+            "title": _lang(lang, "Segment", "Segment"),
+            "type": "category",
+            "categoryorder": "array",
+            "categoryarray": labels,
+        },
         yaxis_title=_lang(lang, "Soiling rate (%/day)", "Kirlenme hızı (%/gün)"),
     )
     return fig
@@ -161,7 +174,7 @@ def cost_curve_figure(optimization: dict[str, Any], lang: str = "EN") -> go.Figu
     )
     fig.add_vline(
         x=t_star,
-        line={"color": NEGATIVE, "width": 2, "dash": "dash"},
+        line={"color": BRAND, "width": 2, "dash": "dash"},
         annotation_text=f"T*={t_star:.0f}d",
         annotation_position="top right",
     )
@@ -181,33 +194,61 @@ def rate_ci_figure(
     upper: float,
     lang: str = "EN",
 ) -> go.Figure:
-    """Horizontal interval plot for the pooled clear-sky soiling rate."""
+    """Horizontal range indicator for pooled clear-sky rate with zero reference."""
+    x_min = min(-0.20, lower - 0.02, rate - 0.02)
+    x_max = max(0.05, upper + 0.02, rate + 0.02)
+    if x_min > 0:
+        x_min = -0.05
+    if x_max < 0:
+        x_max = 0.05
+
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
-            x=[lower, upper],
+            x=[x_min, x_max],
             y=[0, 0],
             mode="lines",
-            line={"color": BRAND, "width": 8},
+            line={"color": TRACK, "width": 3},
             hoverinfo="skip",
             showlegend=False,
         )
     )
+    fig.add_vrect(
+        x0=lower,
+        x1=upper,
+        fillcolor=ACCENT_FILL,
+        line_width=0,
+        layer="below",
+    )
+    fig.add_vline(x=0, line={"color": MUTED, "width": 1, "dash": "dash"})
     fig.add_trace(
         go.Scatter(
             x=[rate],
             y=[0],
             mode="markers",
-            marker={"color": NEGATIVE, "size": 14, "symbol": "diamond"},
+            marker={"color": BRAND, "size": 13, "symbol": "diamond"},
             name=_lang(lang, "Pooled estimate", "Havuzlanmış tahmin"),
-            hovertemplate="%{x:.4f} %/day<extra></extra>",
+            hovertemplate=_rate_hover_template(lang),
         )
     )
+    fig.add_annotation(
+        x=0,
+        y=-0.55,
+        text="0",
+        showarrow=False,
+        font={"size": 11, "color": MUTED},
+        yref="y",
+    )
     fig.update_layout(
-        height=180,
-        margin={"l": 40, "r": 20, "t": 30, "b": 30},
+        height=130,
+        margin={"l": 48, "r": 16, "t": 8, "b": 36},
         title=_lang(lang, "Clear-sky rate (95% CI)", "Açık gökyüzü hızı (%95 GA)"),
-        xaxis_title=_lang(lang, "Soiling rate (%/day)", "Kirlenme hızı (%/gün)"),
-        yaxis={"visible": False, "showticklabels": False},
+        xaxis={
+            "title": _lang(lang, "Soiling rate (%/day)", "Kirlenme hızı (%/gün)"),
+            "range": [x_min, x_max],
+            "zeroline": False,
+        },
+        yaxis={"visible": False, "range": [-1, 0.6], "showticklabels": False},
+        showlegend=False,
     )
     return fig

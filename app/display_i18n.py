@@ -108,15 +108,32 @@ def site_label(site_key: str, default: str):
     return _label
 
 
-def format_headline_rate(rate_pct_per_day: float | None, *, na: str) -> str:
-    """Format pooled soiling rate for KPI cards (2 decimals, sign preserved)."""
+def _format_decimal(value: float, lang: str, *, decimals: int = 2) -> str:
+    text = f"{value:.{decimals}f}"
+    if lang == "TR":
+        text = text.replace(".", ",")
+    return text
+
+
+def format_headline_rate(
+    rate_pct_per_day: float | None,
+    *,
+    na: str,
+    lang: str = "EN",
+) -> str:
+    """Format pooled soiling rate for hero cards (2 decimals, sign preserved)."""
     if rate_pct_per_day is None:
         return na
-    return f"{rate_pct_per_day:.2f} %/day"
+    unit = "%/gün" if lang == "TR" else "%/day"
+    body = _format_decimal(rate_pct_per_day, lang)
+    if rate_pct_per_day < 0:
+        sign = "−" if lang == "TR" else "-"
+        body = f"{sign}{body.lstrip('-')}"
+    return f"{body} {unit}"
 
 
 def format_headline_ci(lower: float | None, upper: float | None, *, na: str) -> str:
-    """Format confidence interval for KPI cards."""
+    """Format confidence interval for display strings."""
     if lower is None or upper is None:
         return na
     return f"{lower:.2f} .. {upper:.2f}"
@@ -170,6 +187,11 @@ def snapshot_status_line(snapshot: DashboardSnapshot, lang: str) -> str:
     name = site_label(snapshot.site_key, snapshot.site_name)(lang)
     message = translate_backend_message(snapshot.message, lang)
     return f"{name} — {message}"
+
+
+def validation_status_line(snapshot: DashboardSnapshot, lang: str) -> str:
+    """Localized validation message only (no site prefix)."""
+    return translate_backend_message(snapshot.message, lang)
 
 
 def translate_pollution_verdict(verdict: str, lang: str) -> str:

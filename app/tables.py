@@ -26,6 +26,17 @@ _SKIP_COLS = {
     "Düşük güven",
 }
 
+_INTEGER_COLS = {"Clean days", "Temiz gün"}
+_RECOVERY_COLS = {"Recovery (%)", "Toparlanma (%)"}
+_RATE_COLS = {
+    "Rate (%/day)",
+    "Hız (%/gün)",
+    "CI lower",
+    "GA alt",
+    "CI upper",
+    "GA üst",
+}
+
 
 def format_segments_table(segments: pd.DataFrame | None, lang: str) -> pd.DataFrame | None:
     """Return a user-facing segment summary table."""
@@ -40,9 +51,16 @@ def format_segments_table(segments: pd.DataFrame | None, lang: str) -> pd.DataFr
     for date_col in ("Start", "Bitiş", "End", "Başlangıç"):
         if date_col in out.columns:
             out[date_col] = pd.to_datetime(out[date_col]).dt.strftime("%Y-%m-%d")
-    numeric_cols = [c for c in out.columns if c not in _SKIP_COLS]
-    for col in numeric_cols:
-        out[col] = pd.to_numeric(out[col], errors="coerce").round(4)
+    for col in out.columns:
+        if col in _SKIP_COLS:
+            continue
+        if col in _INTEGER_COLS:
+            out[col] = pd.to_numeric(out[col], errors="coerce").round(0).astype("Int64")
+        elif col in _RECOVERY_COLS:
+            numeric = pd.to_numeric(out[col], errors="coerce")
+            out[col] = numeric.apply(lambda value: "—" if pd.isna(value) else f"{value:.2f}")
+        elif col in _RATE_COLS:
+            out[col] = pd.to_numeric(out[col], errors="coerce").round(2)
     return out
 
 
@@ -55,9 +73,18 @@ def format_data_preview(
     """Return the most recent daily rows for tabular preview."""
     if master is None or master.empty:
         return None
-    cols = ["date", "production", "irradiation", "pi"]
-    if "pi_temp_corrected" in master.columns:
-        cols.append("pi_temp_corrected")
+    cols = ["date", "production", "irradiation"]
+    has_pi = "pi" in master.columns
+    has_pi_tc = "pi_temp_corrected" in master.columns
+    if has_pi_tc:
+        if has_pi and master["pi"].equals(master["pi_temp_corrected"]):
+            cols.append("pi_temp_corrected")
+        else:
+            if has_pi:
+                cols.append("pi")
+            cols.append("pi_temp_corrected")
+    elif has_pi:
+        cols.append("pi")
     if "clearness_index" in master.columns:
         cols.append("clearness_index")
     if "days_since_wash" in master.columns:
@@ -73,6 +100,13 @@ def format_data_preview(
         "clearness_index": "Clearness" if lang == "EN" else "Berraklık",
         "days_since_wash": "Days since wash" if lang == "EN" else "Yıkamadan beri gün",
     }
+    if (
+        has_pi_tc
+        and has_pi
+        and master["pi"].equals(master["pi_temp_corrected"])
+        and "pi_temp_corrected" in present
+    ):
+        labels["pi_temp_corrected"] = "PI"
     preview = preview.rename(columns={k: labels[k] for k in present})
     if "Date" in preview.columns or "Tarih" in preview.columns:
         date_name = "Date" if lang == "EN" else "Tarih"

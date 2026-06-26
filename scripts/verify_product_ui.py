@@ -17,7 +17,9 @@ LOGGER = logging.getLogger("verifier")
 def _tracked_under_data() -> list[str]:
     return [
         line
-        for line in subprocess.check_output(["git", "ls-files", "data/"], text=True, cwd=ROOT).splitlines()
+        for line in subprocess.check_output(
+            ["git", "ls-files", "data/"], text=True, cwd=ROOT
+        ).splitlines()
         if line.strip()
     ]
 
@@ -70,8 +72,8 @@ def verify_product_ui() -> bool:
         failures.append("streamlit_app still references list_downloadable_figures")
     if "reports/figures" in streamlit_src:
         failures.append("streamlit_app references reports/figures downloads")
-    if 'UI_BUILD = "2026-06-26-p20-ui-polish"' not in streamlit_src:
-        failures.append("UI_BUILD tag not bumped to p20-ui-polish")
+    if 'UI_BUILD = "2026-06-25-p21-ui-redesign"' not in streamlit_src:
+        failures.append("UI_BUILD tag not bumped to p21-ui-redesign")
 
     if failures:
         LOGGER.error("VERIFIER FAIL")
