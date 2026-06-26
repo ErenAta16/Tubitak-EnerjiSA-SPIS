@@ -735,7 +735,8 @@ def write_external_validation_report(
             "source and was replaced by array 32. "
             "These are maintained research strings, not utility plants. Single-array noise, "
             "inverter clipping, and reference-sensor co-soiling differ from Canakkale Hybrid "
-            "GES (~2750 kW AC). Results test method portability, not commercial fleet performance.",
+            "utility-scale hybrid plant. Results test method portability, "
+            "not commercial fleet performance.",
             "",
             "## Recommended future external test",
             "",

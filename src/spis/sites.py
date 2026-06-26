@@ -51,14 +51,17 @@ def _canakkale_site() -> SiteConfig:
     return SiteConfig(
         key="canakkale",
         name="Canakkale Hybrid GES",
-        lat=39.86857,
-        lon=26.24152,
+        lat=config.PLANT_LAT,
+        lon=config.PLANT_LON,
         raw_data_dir=config.DATA_RAW,
         processed_namespace="canakkale",
         panel_class=PANEL_CLASS_JINKO_535,
         operational_data_available=True,
-        coordinates_provisional=False,
-        coordinates_note="Confirmed plant coordinates (P2).",
+        coordinates_provisional=config.PLANT_COORD_SOURCE != "env",
+        coordinates_note=(
+            "Precise plant coordinates are configured locally via PLANT_LAT/PLANT_LON "
+            "in .env and are not committed; the public repo uses a coarse town-level default."
+        ),
     )
 
 

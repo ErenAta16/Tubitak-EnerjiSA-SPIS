@@ -35,6 +35,10 @@ def fetch_open_meteo_air_quality(
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Fetch or load cached daily-aggregated CAMS air-quality for a site."""
     site = get_site(site_key)
+    if site_key == DEFAULT_SITE:
+        from spis import config as spis_config
+
+        spis_config.log_plant_coordinate_source()
     cache_src = _cache_source(site_key)
 
     if not force_refresh:

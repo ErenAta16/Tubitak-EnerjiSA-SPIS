@@ -3,12 +3,12 @@
 ## Production units
 
 SCADA `production` (GUNLUK TOTAL URETIM) is **kWh/day**.
-production is kWh/day: peak-day production/irradiation implied kW ~2748 matches 11x250 kW AC within measurement noise.
-Plant AC capacity: 2750 kW (11 x SG250HX).
+production is kWh/day: peak-day production/irradiation implied kW is consistent with installed AC nameplate within measurement noise.
+Plant AC capacity is derived from inverter nameplate at runtime (absolute kW withheld; proprietary).
 
 ## Clean-baseline daily energy
 
-Pooled clean-baseline energy (median of segment post-wash baselines): **11131 kWh/day**.
+Pooled clean-baseline daily energy is computed per segment from SCADA at runtime (absolute value withheld; proprietary).
 
 ## Soiling model
 
@@ -52,8 +52,8 @@ Mean actual inter-wash gap: **79 days** (8 of 30 swept cost/price combos are nea
 
 ## Assumptions logged
 
-- `wash_cost_tl_sweep` = (50000.0, 100000.0, 150000.0, 200000.0, 300000.0) (ASSUMED): ASSUMED plausible range for full-plant brush/robot wash (TBD from Enerjisa); 50k-300k TL spans ~18-109 TL/kW_AC for 2750 kW.
-- `wash_cost_tl_central` = 150000.0 (ASSUMED): ASSUMED plausible range for full-plant brush/robot wash (TBD from Enerjisa); 50k-300k TL spans ~18-109 TL/kW_AC for 2750 kW.
+- `wash_cost_tl_sweep` = (50000.0, 100000.0, 150000.0, 200000.0, 300000.0) (ASSUMED): ASSUMED plausible range for full-plant brush/robot wash (TBD from Enerjisa); 50k-300k TL spans a plausible TL/kW_AC range for nominal plant AC capacity.
+- `wash_cost_tl_central` = 150000.0 (ASSUMED): ASSUMED plausible range for full-plant brush/robot wash (TBD from Enerjisa); 50k-300k TL spans a plausible TL/kW_AC range for nominal plant AC capacity.
 - `ptf_tl_mwh_sweep` = (1000.0, 1500.0, 2000.0, 2500.0, 3000.0, 3500.0) (ASSUMED): ASSUMED sensitivity range for 2024-2025 when only 2023 PTF CSV is available; sweep grid points are not realized prices.
 - `ptf_tl_mwh_central_legacy_assumed` = 2000.0 (ASSUMED): Previous P4 central price before real 2023 PTF ingest
 - `ptf_tl_mwh_central` = 2189.302656392694 (real_2023): REAL 2023 annual-mean PTF from EPIAS CSV in data/external/epias_ptf/; 2023-only nominal TL; 2024-2025 not supplied. If wash cost is later given in current TL without rebasing, the 2023 nominal price biases T* longer.

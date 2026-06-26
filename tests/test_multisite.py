@@ -27,11 +27,11 @@ def test_sites_registry_has_required_fields() -> None:
     bal = get_site("balikesir")
     assert can.operational_data_available
     assert not bal.operational_data_available
-    assert can.coordinates_provisional is False
+    assert can.coordinates_provisional == (config.PLANT_COORD_SOURCE != "env")
     assert bal.coordinates_provisional is True
     assert can.panel_class == bal.panel_class
-    assert can.lat == pytest.approx(39.86857)
-    assert can.lon == pytest.approx(26.24152)
+    assert can.lat == pytest.approx(config.PLANT_LAT)
+    assert can.lon == pytest.approx(config.PLANT_LON)
 
 
 def test_canakkale_processed_paths_legacy_flat() -> None:

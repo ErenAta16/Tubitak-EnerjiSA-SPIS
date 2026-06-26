@@ -21,6 +21,11 @@ __pycache__/
 # os
 .DS_Store
 
+# derived report tables (regenerated locally; PNG figures stay tracked)
+reports/figures/*.csv
+reports/*.csv
+!reports/figures/*.png
+
 # Stray proprietary source copies at repo root (canonical paths: data/raw/)
 /*.xlsx
 /*.kmz

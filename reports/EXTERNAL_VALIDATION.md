@@ -47,7 +47,7 @@ No operator wash log exists at DKASC. Three threshold presets were applied:
 
 ## kW-scale research-array caveat
 
-Data sources: four fixed-tilt DKASC silicon research arrays (~5 kW AC each, arrays 13/14/18/32 — Trina mono-Si, SunPower mono-Si, Kyocera poly-Si, Canadian Solar poly-Si). Array 10 (SunPower) export was corrupt at the DKASC source and was replaced by array 32. These are maintained research strings, not utility plants. Single-array noise, inverter clipping, and reference-sensor co-soiling differ from Canakkale Hybrid GES (~2750 kW AC). Results test method portability, not commercial fleet performance.
+Data sources: four fixed-tilt DKASC silicon research arrays (~5 kW AC each, arrays 13/14/18/32 — Trina mono-Si, SunPower mono-Si, Kyocera poly-Si, Canadian Solar poly-Si). Array 10 (SunPower) export was corrupt at the DKASC source and was replaced by array 32. These are maintained research strings, not utility plants. Single-array noise, inverter clipping, and reference-sensor co-soiling differ from Canakkale Hybrid GES (utility-scale hybrid plant). Results test method portability, not commercial fleet performance.
 
 ## Recommended future external test
 

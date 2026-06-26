@@ -8,7 +8,7 @@ alwaysApply: false
 
 ## Order of attempts (always self-serve first)
 1. Try to obtain external data programmatically from free, no-auth public sources
-   for plant location lat=39.86857, lon=26.24152:
+   for plant location (set PLANT_LAT/PLANT_LON in local .env; coarse public default otherwise):
    - NASA POWER daily API (irradiance, temperature, wind, precipitation) - no key.
    - Open-Meteo Air Quality API (Copernicus CAMS: pm10, pm2_5, dust,
      aerosol_optical_depth) - no key. This is the pollution layer.

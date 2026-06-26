@@ -4,6 +4,14 @@ Data-driven soiling analysis, washing-schedule optimization, and multi-site
 environmental comparison for Enerjisa hybrid PV plants. TUBITAK 2209-B research
 project.
 
+## Data and confidentiality
+
+Raw Enerjisa SCADA and washing logs are **proprietary** and are **not** included in
+this public repository. Only methodology, code, and aggregated written reports are
+shared for academic purposes. See [DATA_USE.md](DATA_USE.md) for licensing, reuse
+rules, and partner-permission notes. Place plant inputs under `data/raw/` locally;
+set precise Canakkale coordinates in `.env` (`PLANT_LAT`, `PLANT_LON`).
+
 ## Question
 
 How fast does environmental soiling degrade irradiance-normalized PV performance

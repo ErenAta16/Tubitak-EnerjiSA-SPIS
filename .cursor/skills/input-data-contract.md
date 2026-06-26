@@ -39,7 +39,7 @@ then rely on them.
 ## Physical constants (put in config.py)
 - Module: Jinko JKM525-545M, Pmax temp coeff -0.35 %/degC, NOCT 45 degC, ref 25 degC.
 - Inverter: Sungrow SG250HX, 250 kVA AC, 11 units. Two feeders: EFLATUN, HIPOKRAT.
-- Location: lat 39.86857, lon 26.24152 (Canakkale region).
+- Location: set PLANT_LAT/PLANT_LON in local .env (precise coords not committed; coarse public default otherwise).
 
 ## Decimal/locale traps
 Some numeric cells use comma as decimal separator (e.g. "7,65"). Coerce explicitly.

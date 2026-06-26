@@ -45,6 +45,15 @@ def _load_washing_context() -> dict[str, Any]:
     }
 
 
+def _site_coordinate_label(site_key: str, site) -> str:
+    """Format coordinates for reports without disclosing precise Canakkale location."""
+    if site_key == "canakkale" and config.PLANT_COORD_SOURCE != "env":
+        return (
+            "coarse public default (set PLANT_LAT/PLANT_LON in .env for precise location)"
+        )
+    return f"lat={site.lat}, lon={site.lon}"
+
+
 def build_field_visit_pack() -> Path:
     """Write FIELD_VISIT_PACK.md for Canakkale (Balikesir checklist when data arrives)."""
     inverter_summary = _load_inverter_summary()
@@ -144,7 +153,7 @@ def build_field_visit_pack() -> Path:
     )
     for key, site in SITES.items():
         lines.append(
-            f"- **{key}** ({site.name}): lat={site.lat}, lon={site.lon}, "
+            f"- **{key}** ({site.name}): {_site_coordinate_label(key, site)}, "
             f"panel={site.panel_class}, operational_data={site.operational_data_available}, "
             f"status={provisional_label(key)}"
         )

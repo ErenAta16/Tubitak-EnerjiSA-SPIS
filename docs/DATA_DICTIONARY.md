@@ -188,12 +188,13 @@ supplied; every assumed value is logged (`record_type=assumption`).
 ### Production units
 
 SCADA `production` (GUNLUK TOTAL URETIM) is **kWh/day**. Peak-day
-production/irradiation implied ~2748 kW, matching 11 x SG250HX (2750 kW AC).
+production/irradiation implied kW is consistent with installed AC nameplate within
+measurement noise (absolute kW withheld; proprietary).
 
 ### Clean-baseline energy
 
-Pooled post-wash clean-baseline: **11,131 kWh/day** (median of segment baselines from
-first 3 clean days after each wash).
+Pooled post-wash clean-baseline daily energy is computed per segment from SCADA at
+runtime (absolute kWh/day withheld; proprietary).
 
 ### Soiling-loss model
 

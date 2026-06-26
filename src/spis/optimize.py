@@ -61,7 +61,7 @@ def verify_production_units(master: pd.DataFrame) -> ProductionUnitsCheck:
     ratio = float(peak["production"]) / nameplate_kwh_24h
     verdict = (
         "production is kWh/day: peak-day production/irradiation implied kW "
-        f"~{implied_kw:.0f} matches 11x250 kW AC within measurement noise"
+        "is consistent with installed AC nameplate within measurement noise"
     )
     return ProductionUnitsCheck(
         units=config.PRODUCTION_UNITS,
@@ -595,7 +595,6 @@ def write_washing_schedule_report(
     central_source: str,
 ) -> None:
     """Write reports/WASHING_SCHEDULE.md with honest framing."""
-    pooled = baseline.loc[baseline["segment_id"] == -1].iloc[0]
     cent = central.iloc[0]
     bsum = benchmark_summary.iloc[0]
     comp = price_comparison.iloc[0]
@@ -607,12 +606,15 @@ def write_washing_schedule_report(
         "",
         f"SCADA `production` (GUNLUK TOTAL URETIM) is **{units.units}**.",
         units.verdict + ".",
-        f"Plant AC capacity: {units.plant_ac_kw:.0f} kW (11 x SG250HX).",
+        (
+            "Plant AC capacity is derived from inverter nameplate at runtime "
+            "(absolute kW withheld; proprietary)."
+        ),
         "",
         "## Clean-baseline daily energy",
         "",
-        f"Pooled clean-baseline energy (median of segment post-wash baselines): "
-        f"**{pooled['clean_baseline_kwh_day']:.0f} kWh/day**.",
+        "Pooled clean-baseline daily energy is computed per segment from SCADA at runtime "
+        "(absolute value withheld; proprietary).",
         "",
         "## Soiling model",
         "",

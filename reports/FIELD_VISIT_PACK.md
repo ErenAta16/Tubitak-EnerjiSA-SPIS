@@ -53,5 +53,5 @@ Threshold: median relative performance < 0.95 vs daily peer median (not fault di
 
 ## Site registry
 
-- **canakkale** (Canakkale Hybrid GES): lat=39.86857, lon=26.24152, panel=Jinko JKM535 bifacial, operational_data=True, status=CONFIRMED
+- **canakkale** (Canakkale Hybrid GES): coarse public default (set PLANT_LAT/PLANT_LON in .env for precise location), panel=Jinko JKM535 bifacial, operational_data=True, status=CONFIRMED
 - **balikesir** (Balikesir RES (provisional)): lat=39.748, lon=27.996, panel=Jinko JKM535 bifacial, operational_data=False, status=PROVISIONAL

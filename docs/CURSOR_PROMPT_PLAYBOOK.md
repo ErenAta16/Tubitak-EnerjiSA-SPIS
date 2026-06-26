@@ -21,7 +21,8 @@ Set up the project skeleton without touching analysis yet:
    into requirements.lock.
 2. Create src/spis/config.py holding: data paths, plant constants from the data
    contract (module temp coeff -0.0035/degC, NOCT 45, ref 25; 11x SG250HX 250kVA;
-   feeders EFLATUN, HIPOKRAT; lat 39.86857, lon 26.24152), and tunables
+   feeders EFLATUN, HIPOKRAT; plant coordinates via PLANT_LAT/PLANT_LON in local .env),
+   and tunables
    (low-irradiance cutoff, random_state=42). Use pathlib, no hardcoded strings
    elsewhere.
 3. Create src/spis/run.py with an argparse CLI exposing --stage

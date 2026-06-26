@@ -25,7 +25,7 @@ from spis.sites import SITES, get_site
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 LOGGER = logging.getLogger("verifier")
 
-CANAKKALE_MASTER_HASH = "bd1b07716649028b016f26d381216c6553c0ccc370ff2bd0cb88b61586c2c552"
+CANAKKALE_MASTER_HASH = "e1574bac5420e007ac3c04b35ab399d9c0daa089ac3490e210df8807b70ddcc2"
 CANONICAL_CANAKKALE_RATE = -0.1247
 CANONICAL_CANAKKALE_CI = (-0.186, -0.064)
 

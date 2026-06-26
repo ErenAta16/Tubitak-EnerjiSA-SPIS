@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
+
+LOGGER = logging.getLogger(__name__)
 
 _ROOT = Path(__file__).resolve().parents[2]
 
@@ -26,8 +30,58 @@ STC_REF_TEMP_C: float = 25.0
 INVERTER_AC_KVA: float = 250.0
 INVERTER_COUNT: int = 11
 FEEDERS: tuple[str, ...] = ("EFLATUN", "HIPOKRAT")
-PLANT_LAT: float = 39.86857
-PLANT_LON: float = 26.24152
+
+# Canakkale coordinates: precise values belong in local .env (not committed).
+PLANT_LAT_COARSE_DEFAULT: float = 39.9
+PLANT_LON_COARSE_DEFAULT: float = 26.2
+
+
+def _load_env_file() -> None:
+    """Load KEY=VALUE pairs from .env into os.environ when not already set."""
+    env_path = ROOT / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+def _resolve_plant_coordinates() -> tuple[float, float, str]:
+    """Return plant lat/lon and source label (env or coarse_default)."""
+    lat_raw = os.environ.get("PLANT_LAT", "").strip()
+    lon_raw = os.environ.get("PLANT_LON", "").strip()
+    if lat_raw and lon_raw:
+        return float(lat_raw), float(lon_raw), "env"
+    if lat_raw or lon_raw:
+        raise ValueError("Set both PLANT_LAT and PLANT_LON in .env, or leave both unset.")
+    return PLANT_LAT_COARSE_DEFAULT, PLANT_LON_COARSE_DEFAULT, "coarse_default"
+
+
+_load_env_file()
+PLANT_LAT, PLANT_LON, PLANT_COORD_SOURCE = _resolve_plant_coordinates()
+
+
+def log_plant_coordinate_source() -> None:
+    """Log which coordinate source is active for Canakkale external pulls."""
+    if PLANT_COORD_SOURCE == "env":
+        LOGGER.info(
+            "Canakkale coordinates from PLANT_LAT/PLANT_LON (.env): lat=%.5f, lon=%.5f",
+            PLANT_LAT,
+            PLANT_LON,
+        )
+        return
+    LOGGER.info(
+        "Canakkale coordinates using coarse public default (set PLANT_LAT/PLANT_LON "
+        "in .env for precise location): lat=%.1f, lon=%.1f",
+        PLANT_LAT,
+        PLANT_LON,
+    )
 
 # Derived at clean time from LOW_IRRADIATION_PERCENTILE; snapshot ~1125 Wh/m2/day (P2).
 LOW_IRRADIATION_CUTOFF: float | None = None
@@ -90,7 +144,7 @@ WASH_COST_TL_SWEEP: tuple[float, ...] = (50_000.0, 100_000.0, 150_000.0, 200_000
 WASH_COST_TL_CENTRAL: float = 150_000.0
 WASH_COST_BASIS: str = (
     "ASSUMED plausible range for full-plant brush/robot wash (TBD from Enerjisa); "
-    "50k-300k TL spans ~18-109 TL/kW_AC for 2750 kW."
+    "50k-300k TL spans a plausible TL/kW_AC range for nominal plant AC capacity."
 )
 PTF_TL_MWH_SWEEP: tuple[float, ...] = (1000.0, 1500.0, 2000.0, 2500.0, 3000.0, 3500.0)
 PTF_TL_MWH_CENTRAL_ASSUMED_LEGACY: float = 2000.0
