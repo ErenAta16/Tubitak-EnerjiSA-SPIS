@@ -72,8 +72,8 @@ def verify_product_ui() -> bool:
         failures.append("streamlit_app still references list_downloadable_figures")
     if "reports/figures" in streamlit_src:
         failures.append("streamlit_app references reports/figures downloads")
-    if 'UI_BUILD = "2026-06-25-p21-ui-redesign"' not in streamlit_src:
-        failures.append("UI_BUILD tag not bumped to p21-ui-redesign")
+    if 'UI_BUILD = "2026-06-25-p22-visual-system"' not in streamlit_src:
+        failures.append("UI_BUILD tag not bumped to p22-visual-system")
 
     if failures:
         LOGGER.error("VERIFIER FAIL")

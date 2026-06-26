@@ -108,30 +108,6 @@ def site_label(site_key: str, default: str):
     return _label
 
 
-def _format_decimal(value: float, lang: str, *, decimals: int = 2) -> str:
-    text = f"{value:.{decimals}f}"
-    if lang == "TR":
-        text = text.replace(".", ",")
-    return text
-
-
-def format_headline_rate(
-    rate_pct_per_day: float | None,
-    *,
-    na: str,
-    lang: str = "EN",
-) -> str:
-    """Format pooled soiling rate for hero cards (2 decimals, sign preserved)."""
-    if rate_pct_per_day is None:
-        return na
-    unit = "%/gün" if lang == "TR" else "%/day"
-    body = _format_decimal(rate_pct_per_day, lang)
-    if rate_pct_per_day < 0:
-        sign = "−" if lang == "TR" else "-"
-        body = f"{sign}{body.lstrip('-')}"
-    return f"{body} {unit}"
-
-
 def format_headline_ci(lower: float | None, upper: float | None, *, na: str) -> str:
     """Format confidence interval for display strings."""
     if lower is None or upper is None:

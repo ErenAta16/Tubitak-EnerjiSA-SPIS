@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import pandas as pd
+import streamlit as st
+
+from app.theme import format_decimal, format_integer
 
 SEGMENT_DISPLAY_COLUMNS = {
     "segment_id": ("Segment", "Segment"),
@@ -37,6 +40,8 @@ _RATE_COLS = {
     "GA üst",
 }
 
+_TEXT_COLS = _SKIP_COLS | _RECOVERY_COLS
+
 
 def format_segments_table(segments: pd.DataFrame | None, lang: str) -> pd.DataFrame | None:
     """Return a user-facing segment summary table."""
@@ -58,10 +63,36 @@ def format_segments_table(segments: pd.DataFrame | None, lang: str) -> pd.DataFr
             out[col] = pd.to_numeric(out[col], errors="coerce").round(0).astype("Int64")
         elif col in _RECOVERY_COLS:
             numeric = pd.to_numeric(out[col], errors="coerce")
-            out[col] = numeric.apply(lambda value: "—" if pd.isna(value) else f"{value:.2f}")
+            out[col] = numeric.apply(
+                lambda value: "—"
+                if pd.isna(value)
+                else format_decimal(float(value), lang, decimals=2)
+            )
         elif col in _RATE_COLS:
-            out[col] = pd.to_numeric(out[col], errors="coerce").round(2)
+            numeric = pd.to_numeric(out[col], errors="coerce")
+            out[col] = numeric.apply(
+                lambda value: format_decimal(float(value), lang, decimals=2)
+                if pd.notna(value)
+                else value
+            )
     return out
+
+
+def segments_table_column_config(table: pd.DataFrame) -> dict[str, st.column_config.Column]:
+    """Streamlit column_config for the segments table."""
+    cfg: dict[str, st.column_config.Column] = {}
+    for col in table.columns:
+        if col in _TEXT_COLS:
+            if col in _RECOVERY_COLS:
+                cfg[col] = st.column_config.TextColumn(col, width="small")
+            continue
+        if col in _INTEGER_COLS:
+            cfg[col] = st.column_config.NumberColumn(col, format="%d", width="small")
+        elif col in _RATE_COLS:
+            cfg[col] = st.column_config.TextColumn(col, width="medium")
+        else:
+            cfg[col] = st.column_config.TextColumn(col)
+    return cfg
 
 
 def format_data_preview(
@@ -111,7 +142,60 @@ def format_data_preview(
     if "Date" in preview.columns or "Tarih" in preview.columns:
         date_name = "Date" if lang == "EN" else "Tarih"
         preview[date_name] = pd.to_datetime(preview[date_name]).dt.strftime("%Y-%m-%d")
-    return preview.round(4)
+    if lang == "TR":
+        prod_col = "Üretim (kWh)"
+        if prod_col in preview.columns:
+            preview[prod_col] = preview[prod_col].apply(
+                lambda v: format_integer(v, lang) if pd.notna(v) else v
+            )
+        days_col = "Yıkamadan beri gün"
+        if days_col in preview.columns:
+            preview[days_col] = preview[days_col].apply(
+                lambda v: format_integer(v, lang) if pd.notna(v) else v
+            )
+        for pi_col in ("PI", "PI (sıc. düz.)"):
+            if pi_col in preview.columns:
+                preview[pi_col] = preview[pi_col].apply(
+                    lambda v: format_decimal(float(v), lang, decimals=4)
+                    if pd.notna(v)
+                    else v
+                )
+    else:
+        preview = preview.round(4)
+    return preview
+
+
+def data_preview_column_config(
+    table: pd.DataFrame,
+    lang: str,
+) -> dict[str, st.column_config.Column]:
+    """Streamlit column_config for the data preview table."""
+    cfg: dict[str, st.column_config.Column] = {}
+    date_col = "Date" if lang == "EN" else "Tarih"
+    prod_col = "Production (kWh)" if lang == "EN" else "Üretim (kWh)"
+    days_col = "Days since wash" if lang == "EN" else "Yıkamadan beri gün"
+    for col in table.columns:
+        if col == date_col:
+            cfg[col] = st.column_config.TextColumn(col)
+        elif col == prod_col or col == days_col:
+            if lang == "TR":
+                cfg[col] = st.column_config.TextColumn(col, width="medium")
+            else:
+                cfg[col] = st.column_config.NumberColumn(
+                    col,
+                    format="%d" if col == days_col else ",.0f",
+                    width="medium",
+                )
+        elif col.startswith("PI") or col == "Clearness" or col == "Berraklık":
+            if lang == "TR":
+                cfg[col] = st.column_config.TextColumn(col, width="small")
+            else:
+                cfg[col] = st.column_config.NumberColumn(col, format="%.4f", width="small")
+        elif "Irradiation" in col or "Işınım" in col:
+            cfg[col] = st.column_config.NumberColumn(col, format=",.0f", width="medium")
+        else:
+            cfg[col] = st.column_config.TextColumn(col)
+    return cfg
 
 
 def format_comparison_table(table: pd.DataFrame | None, lang: str) -> pd.DataFrame | None:
@@ -141,4 +225,15 @@ def format_comparison_table(table: pd.DataFrame | None, lang: str) -> pd.DataFra
         "clear_sky_ci_upper": "CI upper" if lang == "EN" else "GA üst",
         "pollution_significant": "Pollution sig." if lang == "EN" else "Kirlilik anlamlı",
     }
-    return out.rename(columns=labels).round(4)
+    out = out.rename(columns=labels)
+    rate_cols = [
+        labels["clear_sky_pooled_rate_pct_per_day"],
+        labels["clear_sky_ci_lower"],
+        labels["clear_sky_ci_upper"],
+    ]
+    for col in rate_cols:
+        if col in out.columns:
+            out[col] = out[col].apply(
+                lambda v: format_decimal(float(v), lang, decimals=2) if pd.notna(v) else v
+            )
+    return out

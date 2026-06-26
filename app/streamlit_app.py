@@ -23,6 +23,7 @@ def _refresh_app_modules() -> None:
 
 _refresh_app_modules()
 
+import plotly.graph_objects as go
 import streamlit as st
 
 from app.charts import (
@@ -33,7 +34,6 @@ from app.charts import (
     segment_slopes_figure,
 )
 from app.display_i18n import (
-    format_headline_rate,
     format_t_star_days,
     site_label,
     translate_backend_message,
@@ -42,7 +42,19 @@ from app.display_i18n import (
 )
 from app.models import DashboardSnapshot
 from app.sample_data import load_sample_upload_snapshot
-from app.tables import format_comparison_table, format_data_preview, format_segments_table
+from app.tables import (
+    data_preview_column_config,
+    format_comparison_table,
+    format_data_preview,
+    format_segments_table,
+    segments_table_column_config,
+)
+from app.theme import (
+    PLOTLY_CHART_CONFIG,
+    format_headline_rate,
+    format_integer,
+    inject_theme_css,
+)
 from app.ui_logic import (
     ExampleSiteOption,
     build_results_summary_markdown,
@@ -56,7 +68,7 @@ from app.ui_logic import (
 )
 from spis import config
 
-UI_BUILD = "2026-06-25-p21-ui-redesign"
+UI_BUILD = "2026-06-25-p22-visual-system"
 
 st.set_page_config(page_title="SPIS", layout="wide", initial_sidebar_state="expanded")
 
@@ -149,153 +161,26 @@ def _format_site_option(option: ExampleSiteOption, lang: str) -> str:
     return site_label(option.site_key, option.label)(lang)
 
 
-def _format_integer(value: float | int | None, *, lang: str, na: str) -> str:
-    if value is None:
-        return na
-    formatted = f"{int(round(value)):,}"
-    if lang == "TR":
-        formatted = formatted.replace(",", ".")
-    return formatted
-
-
 def inject_styles() -> None:
-    st.markdown(
-        """
-        <style>
-        .block-container {
-            padding-top: 1.25rem;
-            padding-bottom: 1.5rem;
-            max-width: 1100px;
-        }
-        section[data-testid="stSidebar"] .block-container {
-            padding-top: 1rem;
-        }
-        .spis-header {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.55rem;
-            margin-bottom: 1.25rem;
-        }
-        .spis-wordmark {
-            font-size: 18px;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            color: #1f2328;
-        }
-        .spis-pill {
-            display: inline-block;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: lowercase;
-            color: #57606a;
-            background: #f6f8fa;
-            border: 1px solid #d0d7de;
-            border-radius: 999px;
-            padding: 0.1rem 0.55rem;
-        }
-        .spis-tagline {
-            flex: 1 1 100%;
-            margin: 0;
-            font-size: 0.92rem;
-            color: #57606a;
-            line-height: 1.45;
-        }
-        .spis-validation {
-            display: flex;
-            align-items: center;
-            gap: 0.45rem;
-            margin: 0 0 1rem 0;
-            font-size: 0.86rem;
-            color: #57606a;
-        }
-        .spis-validation-icon {
-            color: #1a7f37;
-            font-weight: 700;
-        }
-        .spis-hero-card {
-            background: #f6f8fa;
-            border: 1px solid #d0d7de;
-            border-left: 4px solid #1f6feb;
-            border-radius: 0.5rem;
-            padding: 1.1rem 1.25rem 1rem;
-            margin-bottom: 1rem;
-        }
-        .spis-hero-label {
-            margin: 0 0 0.35rem 0;
-            font-size: 0.82rem;
-            font-weight: 600;
-            color: #57606a;
-            letter-spacing: 0.01em;
-        }
-        .spis-hero-value {
-            margin: 0;
-            font-size: 2rem;
-            font-weight: 700;
-            line-height: 1.15;
-            color: #1f2328;
-        }
-        .spis-hero-detail {
-            margin: 0.55rem 0 0 0;
-            font-size: 0.92rem;
-            color: #424a53;
-            line-height: 1.45;
-        }
-        .spis-chips {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0.75rem;
-            margin-bottom: 1.25rem;
-        }
-        .spis-chip {
-            background: #ffffff;
-            border: 1px solid #d0d7de;
-            border-radius: 0.45rem;
-            padding: 0.7rem 0.85rem;
-        }
-        .spis-chip-label {
-            margin: 0 0 0.2rem 0;
-            font-size: 0.75rem;
-            color: #57606a;
-        }
-        .spis-chip-value {
-            margin: 0;
-            font-size: 1.05rem;
-            font-weight: 600;
-            color: #1f2328;
-        }
-        .spis-footer {
-            margin-top: 0.5rem;
-            font-size: 0.75rem;
-            color: #8c959f;
-        }
-        .spis-footer a {
-            color: #57606a;
-            text-decoration: none;
-        }
-        .spis-footer a:hover {
-            text-decoration: underline;
-        }
-        @media (max-width: 768px) {
-            .spis-chips {
-                grid-template-columns: 1fr;
-            }
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown(f"<style>{inject_theme_css()}</style>", unsafe_allow_html=True)
+
+
+def plot_spis_chart(fig: go.Figure) -> None:
+    """Render a Plotly figure with shared SPIS config (no modebar)."""
+    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
+
+
+def render_section_heading(label: str) -> None:
+    st.markdown(f'<p class="spis-section-heading">{label}</p>', unsafe_allow_html=True)
 
 
 def render_compact_header(lang: str) -> None:
     st.markdown(
-        f"""
-        <div class="spis-header">
-            <span class="spis-wordmark">SPIS</span>
-            <span class="spis-pill">{_t("demo_pill", lang)}</span>
-            <p class="spis-tagline">{_t("tagline", lang)}</p>
-        </div>
-        """,
+        f'<div class="spis-brand-row">'
+        f'<span class="spis-wordmark">SPIS</span>'
+        f'<span class="spis-pill">{_t("demo_pill", lang)}</span>'
+        f"</div>"
+        f'<p class="spis-tagline">{_t("tagline", lang)}</p>',
         unsafe_allow_html=True,
     )
 
@@ -303,12 +188,9 @@ def render_compact_header(lang: str) -> None:
 def render_validation_line(snapshot: DashboardSnapshot, lang: str) -> None:
     message = validation_status_line(snapshot, lang)
     st.markdown(
-        f"""
-        <p class="spis-validation">
-            <span class="spis-validation-icon" aria-hidden="true">✓</span>
-            <span>{message}</span>
-        </p>
-        """,
+        f'<p class="spis-validation">'
+        f'<span class="spis-validation-icon" aria-hidden="true">✓</span>'
+        f"<span>{message}</span></p>",
         unsafe_allow_html=True,
     )
 
@@ -321,51 +203,38 @@ def render_hero_and_chips(snapshot: DashboardSnapshot, lang: str) -> None:
     rate_text = format_headline_rate(rate, na=na, lang=lang)
     detail = plain_language_soiling_line(rate, lang)
     energy_value = (
-        f"{_format_integer(snapshot.daily_energy_kwh, lang=lang, na=na)} {_t('energy_unit', lang)}"
+        f"{format_integer(snapshot.daily_energy_kwh, lang, na=na)} {_t('energy_unit', lang)}"
         if snapshot.daily_energy_kwh
         else na
     )
-    segments_value = _format_integer(n_segments, lang=lang, na=na) if n_segments else na
+    segments_value = format_integer(n_segments, lang, na=na) if n_segments else na
     range_value = (
-        f"{_format_integer(n_days, lang=lang, na=na)} {_t('days_unit', lang)}"
-        if n_days
-        else na
+        f"{format_integer(n_days, lang, na=na)} {_t('days_unit', lang)}" if n_days else na
     )
     st.markdown(
-        f"""
-        <div class="spis-hero-card">
-            <p class="spis-hero-label">{_t("hero_soiling_label", lang)}</p>
-            <p class="spis-hero-value">{rate_text}</p>
-            <p class="spis-hero-detail">{detail}</p>
-        </div>
-        <div class="spis-chips">
-            <div class="spis-chip">
-                <p class="spis-chip-label">{_t("energy_label", lang)}</p>
-                <p class="spis-chip-value">{energy_value}</p>
-            </div>
-            <div class="spis-chip">
-                <p class="spis-chip-label">{_t("segments_count", lang)}</p>
-                <p class="spis-chip-value">{segments_value}</p>
-            </div>
-            <div class="spis-chip">
-                <p class="spis-chip-label">{_t("date_range_label", lang)}</p>
-                <p class="spis-chip-value">{range_value}</p>
-            </div>
-        </div>
-        """,
+        f'<div class="spis-hero-card">'
+        f'<p class="spis-hero-label">{_t("hero_soiling_label", lang)}</p>'
+        f'<p class="spis-hero-value">{rate_text}</p>'
+        f'<p class="spis-hero-detail">{detail}</p>'
+        f"</div>"
+        f'<div class="spis-chips">'
+        f'<div class="spis-chip"><p class="spis-chip-label">{_t("energy_label", lang)}</p>'
+        f'<p class="spis-chip-value">{energy_value}</p></div>'
+        f'<div class="spis-chip"><p class="spis-chip-label">{_t("segments_count", lang)}</p>'
+        f'<p class="spis-chip-value">{segments_value}</p></div>'
+        f'<div class="spis-chip"><p class="spis-chip-label">{_t("date_range_label", lang)}</p>'
+        f'<p class="spis-chip-value">{range_value}</p></div>'
+        f"</div>",
         unsafe_allow_html=True,
     )
 
 
 def render_footer(lang: str) -> None:
     st.markdown(
-        f"""
-        <p class="spis-footer">
-            {_t("footer_text", lang)}
-            <a href="{DATA_USE_URL}">{_t("footer_data_use", lang)}</a>
-            · {UI_BUILD}
-        </p>
-        """,
+        f'<p class="spis-footer">'
+        f'{_t("footer_text", lang)} '
+        f'<a href="{DATA_USE_URL}">{_t("footer_data_use", lang)}</a>'
+        f" · {UI_BUILD}</p>",
         unsafe_allow_html=True,
     )
 
@@ -420,24 +289,27 @@ def load_input_snapshot(lang: str) -> DashboardSnapshot | None:
 
 def render_overview_tab(snapshot: DashboardSnapshot, lang: str) -> None:
     rate = snapshot.clear_sky_rate_pct_per_day
-    st.markdown(f"**{_t('pollution', lang)}**")
+    st.markdown('<div class="spis-section-block">', unsafe_allow_html=True)
+    render_section_heading(_t("pollution", lang))
     st.write(translate_pollution_verdict(snapshot.pollution_verdict, lang))
+    st.markdown("</div>", unsafe_allow_html=True)
     if (
         rate is not None
         and snapshot.clear_sky_ci_lower is not None
         and snapshot.clear_sky_ci_upper is not None
     ):
-        st.plotly_chart(
-            rate_ci_figure(rate, snapshot.clear_sky_ci_lower, snapshot.clear_sky_ci_upper, lang),
-            use_container_width=True,
+        plot_spis_chart(
+            rate_ci_figure(rate, snapshot.clear_sky_ci_lower, snapshot.clear_sky_ci_upper, lang)
         )
         if rate < 0:
             st.caption(_t("ci_below_zero_caption", lang))
     if snapshot.comparison_table is not None:
-        st.markdown(f"**{_t('comparison', lang)}**")
+        st.markdown('<div class="spis-section-block">', unsafe_allow_html=True)
+        render_section_heading(_t("comparison", lang))
         comparison = format_comparison_table(snapshot.comparison_table, lang)
         if comparison is not None:
             st.dataframe(comparison, use_container_width=True, hide_index=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_charts_tab(snapshot: DashboardSnapshot, lang: str) -> None:
@@ -446,18 +318,12 @@ def render_charts_tab(snapshot: DashboardSnapshot, lang: str) -> None:
         return
     left, right = st.columns(2)
     with left:
-        st.plotly_chart(pi_timeline_figure(snapshot.master, lang), use_container_width=True)
+        plot_spis_chart(pi_timeline_figure(snapshot.master, lang))
     with right:
-        st.plotly_chart(
-            production_irradiation_figure(snapshot.master, lang),
-            use_container_width=True,
-        )
+        plot_spis_chart(production_irradiation_figure(snapshot.master, lang))
     segments = snapshot.segments_frame()
     if segments is not None and not segments.empty:
-        st.plotly_chart(
-            segment_slopes_figure(segments, lang),
-            use_container_width=True,
-        )
+        plot_spis_chart(segment_slopes_figure(segments, lang))
 
 
 def render_segments_tab(snapshot: DashboardSnapshot, lang: str) -> None:
@@ -465,14 +331,19 @@ def render_segments_tab(snapshot: DashboardSnapshot, lang: str) -> None:
     if table is None:
         st.info(_t("no_segments_table", lang))
         return
-    st.dataframe(table, use_container_width=True, hide_index=True)
+    st.dataframe(
+        table,
+        use_container_width=True,
+        hide_index=True,
+        column_config=segments_table_column_config(table),
+    )
 
 
 def render_economy_tab(snapshot: DashboardSnapshot, lang: str) -> dict | None:
     if snapshot.rate_band is None or snapshot.daily_energy_kwh is None:
         st.info(_t("optimizer_unavailable", lang))
         return None
-    st.subheader(_t("optimizer", lang))
+    render_section_heading(_t("optimizer", lang))
     c1, c2 = st.columns(2)
     with c1:
         wash_cost = st.slider(
@@ -501,7 +372,7 @@ def render_economy_tab(snapshot: DashboardSnapshot, lang: str) -> dict | None:
         format_t_star_days(optimization["t_star_days"], unit=_t("days_unit", lang)),
         help=_t("t_star_help", lang),
     )
-    st.plotly_chart(cost_curve_figure(optimization, lang), use_container_width=True)
+    plot_spis_chart(cost_curve_figure(optimization, lang))
     return optimization
 
 
@@ -511,7 +382,12 @@ def render_data_tab(snapshot: DashboardSnapshot, lang: str) -> None:
         st.info(_t("no_daily_rows", lang))
         return
     st.caption(_t("data_preview_caption", lang))
-    st.dataframe(preview, use_container_width=True, hide_index=True)
+    st.dataframe(
+        preview,
+        use_container_width=True,
+        hide_index=True,
+        column_config=data_preview_column_config(preview, lang),
+    )
 
 
 def render_dashboard(snapshot: DashboardSnapshot, lang: str) -> None:

@@ -9,6 +9,7 @@ from typing import Any
 import pandas as pd
 
 from app.models import DashboardSnapshot
+from app.theme import format_percent_in_text
 from spis import config
 from spis.demo_plant import (
     DEMO_PLANT_KEY,
@@ -120,14 +121,16 @@ def validate_upload_frame(frame: pd.DataFrame) -> UploadValidation:
     return UploadValidation(True, f"Validated {len(working)} daily rows.", working)
 
 
+
 def plain_language_soiling_line(rate_pct_per_day: float | None, lang: str) -> str:
     """One-line explanation of the headline soiling rate."""
     if rate_pct_per_day is None:
         return "Soiling rate unavailable." if lang == "EN" else "Kirlenme hızı hesaplanamadı."
     drop = abs(rate_pct_per_day)
     if lang == "TR":
+        pct = format_percent_in_text(drop, lang)
         return (
-            f"Yıkamalar arasında performans günde yaklaşık %{drop:.2f} düşüyor "
+            f"Yıkamalar arasında performans günde yaklaşık {pct} düşüyor "
             "(açık gökyüzü tahmini)."
         )
     return (

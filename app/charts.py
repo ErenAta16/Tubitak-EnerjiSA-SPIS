@@ -8,10 +8,17 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-BRAND = "#1f6feb"
-MUTED = "#57606a"
-ACCENT_FILL = "rgba(31, 111, 235, 0.16)"
-TRACK = "#d0d7de"
+from app.theme import (
+    ACCENT_TINT,
+    CHART_HEIGHT_COMPACT,
+    HAIRLINE,
+    PRIMARY,
+    SECONDARY_LINE,
+    apply_spis_layout,
+    format_decimal,
+    format_integer,
+    format_rate_axis,
+)
 
 
 def _lang(lang: str, en: str, tr: str) -> str:
@@ -22,24 +29,34 @@ def _rate_unit(lang: str) -> str:
     return "%/gün" if lang == "TR" else "%/day"
 
 
-def _rate_hover_template(lang: str) -> str:
-    unit = _rate_unit(lang)
-    return f"%{{x:.2f}} {unit}<extra></extra>"
+def _format_hover_rate(value: float, lang: str) -> str:
+    return f"{format_decimal(value, lang)} {_rate_unit(lang)}"
+
+
+def _format_hover_pi(value: float, lang: str) -> str:
+    return format_decimal(value, lang, decimals=3)
+
+
+def _format_hover_int(value: float, lang: str) -> str:
+    return format_integer(value, lang, na="0")
 
 
 def pi_timeline_figure(master: pd.DataFrame, lang: str = "EN") -> go.Figure:
     """Performance index over time with wash-event markers."""
     frame = master.sort_values("date").copy()
     ycol = "pi_temp_corrected" if "pi_temp_corrected" in frame.columns else "pi"
+    y_values = frame[ycol]
+    custom = [[_format_hover_pi(y, lang)] for y in y_values]
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
             x=frame["date"],
-            y=frame[ycol],
+            y=y_values,
             mode="lines",
             name=_lang(lang, "Performance index", "Performans endeksi"),
-            line={"color": BRAND, "width": 1.5},
-            hovertemplate="%{x|%Y-%m-%d}<br>PI=%{y:.3f}<extra></extra>",
+            line={"color": PRIMARY, "width": 1.5},
+            customdata=custom,
+            hovertemplate="%{x|%Y-%m-%d}<br>PI=%{customdata[0]}<extra></extra>",
         )
     )
     if "segment_id" in frame.columns and "days_since_wash" in frame.columns:
@@ -48,40 +65,40 @@ def pi_timeline_figure(master: pd.DataFrame, lang: str = "EN") -> go.Figure:
             for wash_date in wash_days:
                 fig.add_vline(
                     x=wash_date,
-                    line={"color": MUTED, "width": 1, "dash": "dot"},
+                    line={"color": SECONDARY_LINE, "width": 1, "dash": "dot"},
                 )
             fig.add_trace(
                 go.Scatter(
                     x=[None],
                     y=[None],
                     mode="lines",
-                    line={"color": MUTED, "dash": "dot"},
+                    line={"color": SECONDARY_LINE, "dash": "dot"},
                     name=_lang(lang, "Wash event", "Yıkama"),
+                    hoverinfo="skip",
                 )
             )
-    fig.update_layout(
-        height=360,
-        margin={"l": 40, "r": 20, "t": 40, "b": 40},
+    apply_spis_layout(
+        fig,
         title=_lang(lang, "Performance index timeline", "Performans endeksi zaman serisi"),
-        xaxis_title=_lang(lang, "Date", "Tarih"),
-        yaxis_title="PI",
-        hovermode="x unified",
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "x": 0},
     )
+    fig.update_layout(xaxis_title=_lang(lang, "Date", "Tarih"), yaxis_title="PI")
     return fig
 
 
 def production_irradiation_figure(master: pd.DataFrame, lang: str = "EN") -> go.Figure:
     """Daily production and irradiation on shared timeline."""
     frame = master.sort_values("date").copy()
+    prod_custom = [[_format_hover_int(y, lang)] for y in frame["production"]]
+    irrad_custom = [[_format_hover_int(y, lang)] for y in frame["irradiation"]]
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     fig.add_trace(
         go.Bar(
             x=frame["date"],
             y=frame["production"],
             name=_lang(lang, "Production (kWh)", "Üretim (kWh)"),
-            marker={"color": "#54aeff", "opacity": 0.55},
-            hovertemplate="%{x|%Y-%m-%d}<br>%{y:,.0f} kWh<extra></extra>",
+            marker={"color": PRIMARY, "opacity": 0.35},
+            customdata=prod_custom,
+            hovertemplate="%{x|%Y-%m-%d}<br>%{customdata[0]} kWh<extra></extra>",
         ),
         secondary_y=False,
     )
@@ -90,17 +107,15 @@ def production_irradiation_figure(master: pd.DataFrame, lang: str = "EN") -> go.
             x=frame["date"],
             y=frame["irradiation"],
             name=_lang(lang, "Irradiation (Wh/m²)", "Işınım (Wh/m²)"),
-            line={"color": "#bf8700", "width": 1.2},
-            hovertemplate="%{x|%Y-%m-%d}<br>%{y:,.0f}<extra></extra>",
+            line={"color": SECONDARY_LINE, "width": 1.2},
+            customdata=irrad_custom,
+            hovertemplate="%{x|%Y-%m-%d}<br>%{customdata[0]}<extra></extra>",
         ),
         secondary_y=True,
     )
-    fig.update_layout(
-        height=360,
-        margin={"l": 40, "r": 40, "t": 40, "b": 40},
+    apply_spis_layout(
+        fig,
         title=_lang(lang, "Daily production vs irradiation", "Günlük üretim ve ışınım"),
-        hovermode="x unified",
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "x": 0},
     )
     fig.update_yaxes(title_text=_lang(lang, "Production (kWh)", "Üretim (kWh)"), secondary_y=False)
     fig.update_yaxes(
@@ -116,15 +131,18 @@ def segment_slopes_figure(segments: pd.DataFrame, lang: str = "EN") -> go.Figure
     if frame.empty:
         return go.Figure()
     labels = [str(int(seg_id)) for seg_id in frame["segment_id"]]
-    lower_err = frame["soiling_rate_pct_per_day"] - frame["soiling_rate_ci_lower"]
-    upper_err = frame["soiling_rate_ci_upper"] - frame["soiling_rate_pct_per_day"]
+    rates = frame["soiling_rate_pct_per_day"]
+    lower_err = rates - frame["soiling_rate_ci_lower"]
+    upper_err = frame["soiling_rate_ci_upper"] - rates
+    rate_custom = [[_format_hover_rate(y, lang)] for y in rates]
     fig = go.Figure(
         data=[
             go.Bar(
                 x=labels,
-                y=frame["soiling_rate_pct_per_day"],
-                marker={"color": BRAND, "line": {"width": 0}},
+                y=rates,
+                marker={"color": PRIMARY, "line": {"width": 0}},
                 width=0.35,
+                customdata=rate_custom,
                 error_y={
                     "type": "data",
                     "symmetric": False,
@@ -132,20 +150,21 @@ def segment_slopes_figure(segments: pd.DataFrame, lang: str = "EN") -> go.Figure
                     "array": upper_err,
                     "thickness": 1.2,
                     "width": 4,
-                    "color": MUTED,
+                    "color": SECONDARY_LINE,
                 },
                 hovertemplate=(
                     f"{_lang(lang, 'Segment', 'Segment')} %{{x}}<br>"
-                    f"{_lang(lang, 'Rate', 'Hız')}=%{{y:.2f}} {_rate_unit(lang)}<extra></extra>"
+                    f"{_lang(lang, 'Rate', 'Hız')}=%{{customdata[0]}}<extra></extra>"
                 ),
             )
         ]
     )
-    fig.add_hline(y=0, line={"color": MUTED, "width": 1, "dash": "dash"})
-    fig.update_layout(
-        height=340,
-        margin={"l": 40, "r": 20, "t": 40, "b": 40},
+    fig.add_hline(y=0, line={"color": SECONDARY_LINE, "width": 1, "dash": "dash"})
+    apply_spis_layout(
+        fig,
         title=_lang(lang, "Soiling rate by wash segment", "Yıkama segmentine göre kirlenme"),
+    )
+    fig.update_layout(
         xaxis={
             "title": _lang(lang, "Segment", "Segment"),
             "type": "category",
@@ -161,6 +180,7 @@ def cost_curve_figure(optimization: dict[str, Any], lang: str = "EN") -> go.Figu
     """Total daily cost vs wash interval with optimal T* marker."""
     curve = optimization["cost_curve"]
     t_star = float(optimization["t_star_days"])
+    cost_custom = [[_format_hover_int(y, lang)] for y in curve["total_cost_per_day_tl"]]
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
@@ -168,20 +188,26 @@ def cost_curve_figure(optimization: dict[str, Any], lang: str = "EN") -> go.Figu
             y=curve["total_cost_per_day_tl"],
             mode="lines",
             name=_lang(lang, "Total daily cost", "Toplam günlük maliyet"),
-            line={"color": BRAND, "width": 2},
-            hovertemplate="T=%{x:.0f} d<br>%{y:,.0f} TL/d<extra></extra>",
+            line={"color": PRIMARY, "width": 2},
+            customdata=cost_custom,
+            hovertemplate=(
+                f"T=%{{x:.0f}} {_lang(lang, 'd', 'gün')}<br>"
+                f"%{{customdata[0]}} TL/{_lang(lang, 'd', 'gün')}<extra></extra>"
+            ),
         )
     )
     fig.add_vline(
         x=t_star,
-        line={"color": BRAND, "width": 2, "dash": "dash"},
-        annotation_text=f"T*={t_star:.0f}d",
+        line={"color": PRIMARY, "width": 1.5, "dash": "dash"},
+        annotation_text=f"T*={format_integer(t_star, lang)}",
+        annotation_font={"size": 11, "color": PRIMARY},
         annotation_position="top right",
     )
-    fig.update_layout(
-        height=340,
-        margin={"l": 40, "r": 20, "t": 40, "b": 40},
+    apply_spis_layout(
+        fig,
         title=_lang(lang, "Economic cost vs wash interval", "Maliyet ve yıkama aralığı"),
+    )
+    fig.update_layout(
         xaxis_title=_lang(lang, "Wash interval (days)", "Yıkama aralığı (gün)"),
         yaxis_title=_lang(lang, "Total cost per day (TL)", "Toplam günlük maliyet (TL)"),
     )
@@ -208,7 +234,7 @@ def rate_ci_figure(
             x=[x_min, x_max],
             y=[0, 0],
             mode="lines",
-            line={"color": TRACK, "width": 3},
+            line={"color": HAIRLINE, "width": 3},
             hoverinfo="skip",
             showlegend=False,
         )
@@ -216,39 +242,49 @@ def rate_ci_figure(
     fig.add_vrect(
         x0=lower,
         x1=upper,
-        fillcolor=ACCENT_FILL,
+        fillcolor=ACCENT_TINT,
         line_width=0,
         layer="below",
     )
-    fig.add_vline(x=0, line={"color": MUTED, "width": 1, "dash": "dash"})
+    fig.add_vline(x=0, line={"color": SECONDARY_LINE, "width": 1, "dash": "dash"})
     fig.add_trace(
         go.Scatter(
             x=[rate],
             y=[0],
             mode="markers",
-            marker={"color": BRAND, "size": 13, "symbol": "diamond"},
+            marker={"color": PRIMARY, "size": 12, "symbol": "diamond"},
             name=_lang(lang, "Pooled estimate", "Havuzlanmış tahmin"),
-            hovertemplate=_rate_hover_template(lang),
+            customdata=[[_format_hover_rate(rate, lang)]],
+            hovertemplate="%{customdata[0]}<extra></extra>",
         )
     )
-    fig.add_annotation(
-        x=0,
-        y=-0.55,
-        text="0",
-        showarrow=False,
-        font={"size": 11, "color": MUTED},
-        yref="y",
-    )
-    fig.update_layout(
-        height=130,
-        margin={"l": 48, "r": 16, "t": 8, "b": 36},
+    apply_spis_layout(
+        fig,
         title=_lang(lang, "Clear-sky rate (95% CI)", "Açık gökyüzü hızı (%95 GA)"),
+        height=CHART_HEIGHT_COMPACT,
+        compact=True,
+    )
+    tick_count = 5
+    span = x_max - x_min
+    raw_ticks = [x_min + span * i / (tick_count - 1) for i in range(tick_count)]
+    ticktext = [format_rate_axis(tick, lang) for tick in raw_ticks]
+    fig.update_layout(
         xaxis={
             "title": _lang(lang, "Soiling rate (%/day)", "Kirlenme hızı (%/gün)"),
             "range": [x_min, x_max],
+            "tickvals": raw_ticks,
+            "ticktext": ticktext,
             "zeroline": False,
         },
-        yaxis={"visible": False, "range": [-1, 0.6], "showticklabels": False},
+        yaxis={"visible": False, "range": [-1, 0.55], "showticklabels": False, "fixedrange": True},
         showlegend=False,
+    )
+    fig.add_annotation(
+        x=0,
+        y=-0.45,
+        text="0",
+        showarrow=False,
+        font={"size": 11, "color": SECONDARY_LINE},
+        yref="y",
     )
     return fig

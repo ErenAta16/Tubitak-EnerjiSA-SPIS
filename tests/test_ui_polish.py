@@ -1,4 +1,4 @@
-"""P21 UI redesign tests: layout, i18n, formatting, and public-app safety."""
+"""P22 visual system tests: theme, i18n, charts, formatting, and public-app safety."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ from pathlib import Path
 
 from app.charts import rate_ci_figure, segment_slopes_figure
 from app.display_i18n import (
-    format_headline_rate,
     site_label,
     translate_backend_message,
     validation_status_line,
@@ -15,14 +14,27 @@ from app.display_i18n import (
 from app.sample_data import load_sample_upload_snapshot
 from app.streamlit_app import TEXT, UI_BUILD, _t
 from app.tables import format_data_preview, format_segments_table
-from app.ui_logic import load_demo_dashboard_snapshot
+from app.theme import (
+    CHART_MARGINS,
+    apply_spis_layout,
+    format_headline_rate,
+    format_percent_in_text,
+)
+from app.ui_logic import load_demo_dashboard_snapshot, plain_language_soiling_line
 
 ROOT = Path(__file__).resolve().parents[1]
 STREAMLIT_APP = ROOT / "app" / "streamlit_app.py"
+CONFIG_TOML = ROOT / ".streamlit" / "config.toml"
 
 
-def test_ui_build_tag_is_p21() -> None:
-    assert UI_BUILD == "2026-06-25-p21-ui-redesign"
+def test_ui_build_tag_is_p22() -> None:
+    assert UI_BUILD == "2026-06-25-p22-visual-system"
+
+
+def test_config_toml_uses_teal_theme() -> None:
+    text = CONFIG_TOML.read_text(encoding="utf-8")
+    assert "primaryColor = \"#0E7C66\"" in text
+    assert "backgroundColor = \"#FAFAF8\"" in text
 
 
 def test_t_returns_single_language() -> None:
@@ -37,11 +49,22 @@ def test_headline_number_formatting_two_decimals() -> None:
     assert format_headline_rate(-0.1469, na="yok", lang="TR") == "−0,15 %/gün"
 
 
+def test_tr_plain_language_uses_comma_decimal() -> None:
+    line = plain_language_soiling_line(-0.15, "TR")
+    assert "%0,15" in line
+    assert "%0." not in line
+    assert "%/day" not in line
+
+
+def test_format_percent_in_text_tr() -> None:
+    assert format_percent_in_text(0.15, "TR") == "%0,15"
+
+
 def test_validation_status_line_localized_turkish() -> None:
     snap = load_sample_upload_snapshot()
     assert snap.available
     validated = validation_status_line(snap, "TR")
-    assert "120" in validated or "gömülü" in validated.lower() or "Gömülü" in validated
+    assert "120" in validated or "Gömülü" in validated
     upload_msg = translate_backend_message("Validated 120 daily rows.", "TR")
     assert upload_msg == "120 günlük satır doğrulandı."
 
@@ -55,6 +78,8 @@ def test_streamlit_app_has_no_figure_downloads() -> None:
     source = STREAMLIT_APP.read_text(encoding="utf-8")
     assert "list_downloadable_figures" not in source
     assert "reports/figures" not in source
+    assert "plot_spis_chart" in source
+    assert "PLOTLY_CHART_CONFIG" in source
 
 
 def test_no_dual_language_slash_in_text_catalog() -> None:
@@ -90,12 +115,25 @@ def test_tr_chart_strings_no_english_leaks() -> None:
     ci_blob = json.dumps(ci_payload, ensure_ascii=False)
     assert "%/day" not in ci_blob
     assert "%95 GA" in ci_blob
+    assert ci_fig.layout.margin.t == CHART_MARGINS["t"]
+    assert ci_fig.layout.hovermode == "closest"
 
     assert snap.segments is not None
     seg_fig = segment_slopes_figure(snap.segments, "TR")
     seg_blob = json.dumps(json.loads(seg_fig.to_json()), ensure_ascii=False)
     assert "%/day" not in seg_blob
     assert "%/gün" in seg_blob
+    assert seg_fig.layout.margin.l == CHART_MARGINS["l"]
+
+
+def test_apply_spis_layout_sets_shared_margins() -> None:
+    import plotly.graph_objects as go
+
+    fig = go.Figure()
+    apply_spis_layout(fig, title="Test")
+    assert fig.layout.margin.l == CHART_MARGINS["l"]
+    assert fig.layout.margin.t == CHART_MARGINS["t"]
+    assert fig.layout.title.y == 0.97
 
 
 def test_segments_table_uses_integer_clean_days() -> None:
@@ -129,6 +167,7 @@ def test_demo_plant_headless_tab_functions_exist() -> None:
         "render_data_tab",
         "render_hero_and_chips",
         "render_validation_line",
+        "plot_spis_chart",
     ):
         assert hasattr(streamlit_app, name)
 
