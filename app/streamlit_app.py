@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import sys
 
+SOURCE_EXAMPLE = "example"
+SOURCE_UPLOAD = "upload"
+SOURCE_OPTIONS = (SOURCE_EXAMPLE, SOURCE_UPLOAD)
+LANG_OPTIONS = ("TR", "EN")
+
 
 def _refresh_app_modules() -> None:
     """Drop cached app.* modules so each Streamlit rerun loads fresh code from disk."""
@@ -24,15 +29,24 @@ from app.charts import (
     rate_ci_figure,
     segment_slopes_figure,
 )
+from app.display_i18n import (
+    format_headline_ci,
+    format_headline_rate,
+    format_t_star_days,
+    site_label,
+    snapshot_status_line,
+    translate_backend_message,
+    translate_pollution_verdict,
+)
 from app.models import SAMPLE_UPLOAD_KEY, DashboardSnapshot
 from app.sample_data import load_sample_upload_snapshot
 from app.tables import format_comparison_table, format_data_preview, format_segments_table
 from app.ui_logic import (
+    ExampleSiteOption,
     build_results_summary_markdown,
     compute_live_optimization,
     default_example_site_key,
     get_sample_upload_csv_bytes,
-    list_downloadable_figures,
     list_example_site_options,
     load_dashboard_snapshot,
     load_upload_dashboard_snapshot,
@@ -40,11 +54,15 @@ from app.ui_logic import (
 )
 from spis import config
 
-UI_BUILD = "2026-06-26-upload-v3"
+UI_BUILD = "2026-06-26-p20-ui-polish"
 
 st.set_page_config(page_title="SPIS", layout="wide", initial_sidebar_state="expanded")
 
 TEXT = {
+    "language_label": ("Language", "Dil"),
+    "language_tr": ("Turkish", "Türkçe"),
+    "language_en": ("English", "English"),
+    "ui_build": ("UI build", "UI sürümü"),
     "title": (
         "SPIS — Solar Performance Improvement System",
         "SPIS — Güneş Performans İyileştirme Sistemi",
@@ -70,6 +88,25 @@ TEXT = {
             "5. Yıkama maliyeti ve elektrik fiyatı ile ekonomik optimum T* bulun.",
         ],
     ),
+    "data_header": ("Data", "Veri"),
+    "input_source": ("Input source", "Veri kaynağı"),
+    "source_example": ("Example site", "Örnek santral"),
+    "source_upload": ("Upload CSV", "CSV yükle"),
+    "site_label": ("Site", "Santral"),
+    "download_sample_csv": ("Download sample CSV", "Örnek CSV indir"),
+    "required_columns": (
+        "Required columns: date, production, irradiation",
+        "Gerekli sütunlar: date, production, irradiation",
+    ),
+    "csv_format_hint": (
+        "Example row: date,production,irradiation",
+        "Örnek satır: date,production,irradiation",
+    ),
+    "csv_format_example": (
+        "date,production,irradiation\n2024-01-01,3400.0,4000.0",
+        "date,production,irradiation\n2024-01-01,3400.0,4000.0",
+    ),
+    "upload_file_label": ("Daily CSV file", "Günlük CSV dosyası"),
     "overview": ("Overview", "Özet"),
     "charts": ("Charts", "Grafikler"),
     "segments": ("Segments", "Segmentler"),
@@ -81,13 +118,25 @@ TEXT = {
         "Negatif %/gün, güneşli günlerde performans endeksinin yıkamalar arasında "
         "düştüğünü gösterir.",
     ),
+    "ci_label": ("95% CI", "95% GA"),
+    "energy_label": ("Median daily energy", "Günlük enerji (medyan)"),
     "energy_help": (
         "Typical clean-day energy used for the economic optimizer (not plant nameplate).",
         "Ekonomik optimizasyon için kullanılan tipik temiz-gün enerjisi (nominal kapasite değil).",
     ),
+    "energy_unit": ("kWh", "kWh"),
     "segments_count": ("Wash segments", "Yıkama segmenti"),
-    "days_count": ("Daily rows", "Günlük satır"),
+    "days_count": ("daily rows", "günlük satır"),
+    "na": ("n/a", "yok"),
     "optimizer": ("Economic optimizer", "Ekonomik optimizasyon"),
+    "wash_cost": ("Wash cost (TL)", "Yıkama maliyeti (TL)"),
+    "electricity_price": ("Electricity price (TL/MWh)", "Elektrik fiyatı (TL/MWh)"),
+    "t_star": ("Optimal wash interval T*", "Optimal yıkama aralığı T*"),
+    "t_star_help": (
+        "Minimum total daily cost (lost energy + amortized wash cost).",
+        "Minimum günlük toplam maliyet (enerji kaybı + yıkama maliyeti).",
+    ),
+    "days_unit": ("days", "gün"),
     "pollution": ("Pollution test", "Kirlilik testi"),
     "comparison": ("Site comparison", "Santral karşılaştırması"),
     "waiting_upload": (
@@ -97,6 +146,22 @@ TEXT = {
     "sample_preview": (
         "Showing the built-in sample CSV below. Upload your own file to replace it.",
         "Aşağıda gömülü örnek CSV gösteriliyor. Kendi dosyanızı yükleyerek değiştirin.",
+    ),
+    "no_timeseries": ("No time series available.", "Zaman serisi yok."),
+    "no_segments_table": (
+        "Segment table not available for this input.",
+        "Bu girdi için segment tablosu yok.",
+    ),
+    "optimizer_unavailable": (
+        "Economic optimizer needs a valid soiling rate and daily energy estimate.",
+        "Ekonomik optimizasyon için geçerli kirlenme hızı ve günlük enerji gerekir.",
+    ),
+    "no_daily_rows": ("No daily rows to display.", "Gösterilecek günlük satır yok."),
+    "data_preview_caption": ("Most recent daily rows", "Son günlük satırlar"),
+    "download_summary": ("Download summary", "Özeti indir"),
+    "csv_read_error": (
+        "Could not read the CSV file. Save as UTF-8 comma-separated text.",
+        "CSV okunamadı. UTF-8 ve virgülle ayrılmış metin olarak kaydedin.",
     ),
     "footer": (
         "TUBITAK 2209-B research demo — code under MIT; plant data proprietary. See DATA_USE.md.",
@@ -115,6 +180,14 @@ def _steps(lang: str) -> list[str]:
     return tr if lang == "TR" else en
 
 
+def _language_name(code: str) -> str:
+    return _t("language_tr", code) if code == "TR" else _t("language_en", code)
+
+
+def _format_site_option(option: ExampleSiteOption, lang: str) -> str:
+    return site_label(option.site_key, option.label)(lang)
+
+
 def inject_styles() -> None:
     st.markdown(
         """
@@ -131,6 +204,15 @@ def inject_styles() -> None:
             border-radius: 0.75rem;
             padding: 1rem 1.25rem;
             margin-bottom: 1rem;
+        }
+        .spis-headline {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0 0 1rem 0;
+            padding: 0.75rem 1rem;
+            background: #ddf4ff;
+            border: 1px solid #54aeff;
+            border-radius: 0.5rem;
         }
         </style>
         """,
@@ -157,33 +239,39 @@ def render_footer(lang: str) -> None:
 
 
 def load_input_snapshot(lang: str) -> DashboardSnapshot | None:
-    st.sidebar.header("Data / Veri")
-    source = st.sidebar.radio(
-        "Input source / Veri kaynağı",
-        ["Example site / Örnek santral", "Upload CSV / CSV yükle"],
+    st.sidebar.header(_t("data_header", lang))
+    source_key = st.sidebar.radio(
+        _t("input_source", lang),
+        SOURCE_OPTIONS,
+        format_func=lambda key: _t(f"source_{key}", lang),
     )
-    if source.startswith("Example"):
+    if source_key == SOURCE_EXAMPLE:
         options = list_example_site_options()
         default_index = next(
             (idx for idx, opt in enumerate(options) if opt.site_key == default_example_site_key()),
             0,
         )
         selected = st.sidebar.selectbox(
-            "Site / Santral",
+            _t("site_label", lang),
             options,
             index=default_index,
-            format_func=lambda item: item.label,
+            format_func=lambda item: _format_site_option(item, lang),
         )
         return load_dashboard_snapshot(selected.site_key)
 
     st.sidebar.download_button(
-        "Download sample CSV / Örnek CSV indir",
+        _t("download_sample_csv", lang),
         data=get_sample_upload_csv_bytes(),
         file_name="spis_upload_template.csv",
         mime="text/csv",
     )
-    st.sidebar.caption("Required columns: date, production, irradiation")
-    uploaded = st.sidebar.file_uploader("Daily CSV", type=["csv"], label_visibility="collapsed")
+    st.sidebar.caption(_t("required_columns", lang))
+    st.sidebar.caption(_t("csv_format_hint", lang))
+    st.sidebar.code(_t("csv_format_example", lang), language=None)
+    uploaded = st.sidebar.file_uploader(
+        _t("upload_file_label", lang),
+        type=["csv"],
+    )
     if uploaded is None:
         return load_sample_upload_snapshot()
     import pandas as pd
@@ -191,13 +279,13 @@ def load_input_snapshot(lang: str) -> DashboardSnapshot | None:
     try:
         frame = pd.read_csv(uploaded)
     except Exception:
-        st.error("Could not read the CSV file. Save as UTF-8 comma-separated text.")
+        st.error(_t("csv_read_error", lang))
         return None
     snapshot = load_upload_dashboard_snapshot(frame)
     if not snapshot.available:
-        st.error(snapshot.message)
+        st.error(translate_backend_message(snapshot.message, lang))
         return None
-    st.sidebar.success(snapshot.message)
+    st.sidebar.success(translate_backend_message(snapshot.message, lang))
     return snapshot
 
 
@@ -205,37 +293,46 @@ def render_headline_metrics(snapshot: DashboardSnapshot, lang: str) -> None:
     rate = snapshot.clear_sky_rate_pct_per_day
     n_days = len(snapshot.master) if snapshot.master is not None else 0
     n_segments = snapshot.segment_count()
+    na = _t("na", lang)
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.metric(
             _t("soiling", lang),
-            f"{rate:.4f} %/day" if rate is not None else "n/a",
+            format_headline_rate(rate, na=na),
             help=_t("soiling_help", lang),
         )
     with c2:
-        ci_text = "n/a"
-        if snapshot.clear_sky_ci_lower is not None and rate is not None:
-            ci_text = f"{snapshot.clear_sky_ci_lower:.4f} .. {snapshot.clear_sky_ci_upper:.4f}"
-        st.metric("95% CI / GA", ci_text)
-    with c3:
         st.metric(
-            "Median daily energy / Günlük enerji",
-            f"{snapshot.daily_energy_kwh:,.0f} kWh" if snapshot.daily_energy_kwh else "n/a",
+            _t("ci_label", lang),
+            format_headline_ci(snapshot.clear_sky_ci_lower, snapshot.clear_sky_ci_upper, na=na),
+        )
+    with c3:
+        energy = (
+            f"{snapshot.daily_energy_kwh:,.0f} {_t('energy_unit', lang)}"
+            if snapshot.daily_energy_kwh
+            else na
+        )
+        st.metric(
+            _t("energy_label", lang),
+            energy,
             help=_t("energy_help", lang),
         )
     with c4:
         st.metric(
             _t("segments_count", lang),
-            f"{n_segments}" if n_segments else "n/a",
-            delta=f"{n_days} {_t('days_count', lang).lower()}" if n_days else None,
+            f"{n_segments}" if n_segments else na,
+            delta=f"{n_days} {_t('days_count', lang)}" if n_days else None,
         )
 
 
 def render_overview_tab(snapshot: DashboardSnapshot, lang: str) -> None:
     rate = snapshot.clear_sky_rate_pct_per_day
-    st.info(plain_language_soiling_line(rate, lang))
+    st.markdown(
+        f"<p class='spis-headline'>{plain_language_soiling_line(rate, lang)}</p>",
+        unsafe_allow_html=True,
+    )
     st.markdown(f"**{_t('pollution', lang)}**")
-    st.write(snapshot.pollution_verdict)
+    st.write(translate_pollution_verdict(snapshot.pollution_verdict, lang))
     if (
         rate is not None
         and snapshot.clear_sky_ci_lower is not None
@@ -254,7 +351,7 @@ def render_overview_tab(snapshot: DashboardSnapshot, lang: str) -> None:
 
 def render_charts_tab(snapshot: DashboardSnapshot, lang: str) -> None:
     if snapshot.master is None:
-        st.warning("No time series available.")
+        st.warning(_t("no_timeseries", lang))
         return
     left, right = st.columns(2)
     with left:
@@ -275,7 +372,7 @@ def render_charts_tab(snapshot: DashboardSnapshot, lang: str) -> None:
 def render_segments_tab(snapshot: DashboardSnapshot, lang: str) -> None:
     table = format_segments_table(snapshot.segments_frame(), lang)
     if table is None:
-        st.info("Segment table not available for this input.")
+        st.info(_t("no_segments_table", lang))
         return
     skip_cols = {
         "Segment",
@@ -298,15 +395,15 @@ def render_segments_tab(snapshot: DashboardSnapshot, lang: str) -> None:
     )
 
 
-def render_economy_tab(snapshot: DashboardSnapshot, lang: str) -> None:
+def render_economy_tab(snapshot: DashboardSnapshot, lang: str) -> dict | None:
     if snapshot.rate_band is None or snapshot.daily_energy_kwh is None:
-        st.info("Economic optimizer needs a valid soiling rate and daily energy estimate.")
-        return
+        st.info(_t("optimizer_unavailable", lang))
+        return None
     st.subheader(_t("optimizer", lang))
     c1, c2 = st.columns(2)
     with c1:
         wash_cost = st.slider(
-            "Wash cost (TL) / Yıkama maliyeti (TL)",
+            _t("wash_cost", lang),
             min_value=50_000,
             max_value=300_000,
             value=int(config.WASH_COST_TL_CENTRAL),
@@ -314,7 +411,7 @@ def render_economy_tab(snapshot: DashboardSnapshot, lang: str) -> None:
         )
     with c2:
         price = st.slider(
-            "Electricity price (TL/MWh) / Elektrik fiyatı (TL/MWh)",
+            _t("electricity_price", lang),
             min_value=500,
             max_value=3500,
             value=1500,
@@ -327,9 +424,9 @@ def render_economy_tab(snapshot: DashboardSnapshot, lang: str) -> None:
         daily_energy_kwh=snapshot.daily_energy_kwh,
     )
     st.metric(
-        "Optimal wash interval T* / Optimal yıkama aralığı T*",
-        f"{optimization['t_star_days']:.0f} days",
-        help="Minimum total daily cost (lost energy + amortized wash cost).",
+        _t("t_star", lang),
+        format_t_star_days(optimization["t_star_days"], unit=_t("days_unit", lang)),
+        help=_t("t_star_help", lang),
     )
     st.plotly_chart(cost_curve_figure(optimization, lang), use_container_width=True)
     return optimization
@@ -338,22 +435,18 @@ def render_economy_tab(snapshot: DashboardSnapshot, lang: str) -> None:
 def render_data_tab(snapshot: DashboardSnapshot, lang: str) -> None:
     preview = format_data_preview(snapshot.master, lang=lang)
     if preview is None:
-        st.info("No daily rows to display.")
+        st.info(_t("no_daily_rows", lang))
         return
-    st.caption(
-        "Most recent daily rows / Son günlük satırlar"
-        if lang == "EN"
-        else "Son günlük satırlar / Most recent daily rows"
-    )
+    st.caption(_t("data_preview_caption", lang))
     st.dataframe(preview, use_container_width=True, hide_index=True)
 
 
 def render_dashboard(snapshot: DashboardSnapshot, lang: str) -> None:
     if not snapshot.available:
-        st.warning(snapshot.message)
+        st.warning(translate_backend_message(snapshot.message, lang))
         return
 
-    st.success(f"{snapshot.site_name} — {snapshot.message}")
+    st.success(snapshot_status_line(snapshot, lang))
     if snapshot.site_key == SAMPLE_UPLOAD_KEY:
         st.info(_t("sample_preview", lang))
     render_headline_metrics(snapshot, lang)
@@ -383,24 +476,24 @@ def render_dashboard(snapshot: DashboardSnapshot, lang: str) -> None:
 
     summary = build_results_summary_markdown(snapshot, optimization)
     st.download_button(
-        "Download summary / Özeti indir",
+        _t("download_summary", lang),
         data=summary,
         file_name="spis_summary.md",
         mime="text/markdown",
     )
-    for fig_path in list_downloadable_figures():
-        st.download_button(
-            f"Download {fig_path.name}",
-            data=fig_path.read_bytes(),
-            file_name=fig_path.name,
-            mime="image/png",
-        )
 
 
 def main() -> None:
     inject_styles()
-    lang = st.sidebar.selectbox("Language / Dil", ["EN", "TR"])
-    st.sidebar.caption(f"UI build: {UI_BUILD}")
+    default_lang = st.session_state.get("ui_lang", "TR")
+    lang = st.sidebar.selectbox(
+        _t("language_label", default_lang),
+        LANG_OPTIONS,
+        index=LANG_OPTIONS.index(default_lang) if default_lang in LANG_OPTIONS else 0,
+        format_func=_language_name,
+        key="ui_lang",
+    )
+    st.sidebar.caption(f"{_t('ui_build', lang)}: {UI_BUILD}")
     render_landing(lang)
     snapshot = load_input_snapshot(lang)
     if snapshot is not None and snapshot.available:

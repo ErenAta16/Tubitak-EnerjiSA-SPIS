@@ -65,6 +65,14 @@ def verify_product_ui() -> bool:
     except Exception as exc:
         failures.append(f"Demo snapshot load failed: {exc}")
 
+    streamlit_src = (ROOT / "app" / "streamlit_app.py").read_text(encoding="utf-8")
+    if "list_downloadable_figures" in streamlit_src:
+        failures.append("streamlit_app still references list_downloadable_figures")
+    if "reports/figures" in streamlit_src:
+        failures.append("streamlit_app references reports/figures downloads")
+    if 'UI_BUILD = "2026-06-26-p20-ui-polish"' not in streamlit_src:
+        failures.append("UI_BUILD tag not bumped to p20-ui-polish")
+
     if failures:
         LOGGER.error("VERIFIER FAIL")
         for item in failures:
@@ -74,6 +82,7 @@ def verify_product_ui() -> bool:
     LOGGER.info("VERIFIER PASS")
     LOGGER.info("- Only synthetic demo data tracked under data/")
     LOGGER.info("- requirements-streamlit.txt and Streamlit config present")
+    LOGGER.info("- Public app exposes no reports/figures PNG downloads")
     return True
 
 
