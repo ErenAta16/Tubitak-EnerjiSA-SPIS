@@ -4,6 +4,9 @@ data/interim/*
 data/processed/*
 data/external/*
 !data/**/.gitkeep
+!data/examples/demo_plant/**
+!data/examples/demo_plant/README.md
+!data/examples/demo_plant/*.parquet
 
 # secrets
 .env
@@ -33,3 +36,4 @@ reports/*.csv
 !requirements.txt
 !requirements-ui.txt
 !requirements-bench.txt
+!requirements-streamlit.txt

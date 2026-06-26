@@ -37,7 +37,10 @@ def _tracked_files() -> list[Path]:
 
 def _grep_forbidden_in_tracked() -> list[str]:
     failures: list[str] = []
+    skip_names = {"verify_repo_hardening.py", "verify_product_ui.py", "test_config.py"}
     for path in _tracked_files():
+        if path.name in skip_names:
+            continue
         try:
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):

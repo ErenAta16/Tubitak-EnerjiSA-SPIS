@@ -48,6 +48,7 @@ between washes, and what washing interval minimizes total cost?
 ```
 src/spis/           library code (loaders, models, reports)
 data/raw/           plant inputs (not committed)
+data/examples/      synthetic demo snapshot for public UI (committed)
 data/external/      cached API pulls (not committed)
 data/processed/     analysis tables (not committed)
 reports/            markdown reports + figures (committed)
@@ -98,16 +99,36 @@ python -m spis.run --stage field_visit
 python -m spis.run --stage external_validation
 ```
 
-**Web UI (optional Streamlit; not required for the core pipeline):**
+**Web UI (Streamlit demo — works without proprietary data):**
 
 ```bash
-pip install -r requirements-ui.txt
+pip install -r requirements-streamlit.txt
 streamlit run app/streamlit_app.py
 ```
 
-For [Streamlit Community Cloud](https://streamlit.io/cloud), point the app entry to
-`app/streamlit_app.py`, keep secrets out of the repo, and upload plant CSVs or rely on
-precomputed example outputs from a local `--stage all` run.
+The default **Demo Plant (synthetic)** loads from `data/examples/demo_plant/` and drives
+soiling, pollution text, PI timeline, and the economic optimizer. Canakkale and DKASC
+examples appear only when you have built local `data/processed/` outputs.
+
+## Live demo / Deployment
+
+**Streamlit Community Cloud (recommended, free tier):**
+
+1. Push this repo to GitHub (`main` branch).
+2. Open [share.streamlit.io](https://share.streamlit.io), connect the repo.
+3. Set **Main file path** to `app/streamlit_app.py`.
+4. Set **Python version** to **3.12**.
+5. Use **`requirements-streamlit.txt`** as the dependencies file (repo root).
+6. Deploy. No secrets required for the synthetic demo.
+
+Live URL placeholder: _add your `.streamlit.app` link after deploy._
+
+Screenshots: add PNGs under `docs/screenshots/` after deployment.
+
+**Hugging Face Spaces:** alternative — create a Streamlit Space, point entry to
+`app/streamlit_app.py`, and use the same `requirements-streamlit.txt`.
+
+Keep proprietary Enerjisa files in `data/raw/` locally only; never commit them.
 
 **Quality gates:**
 
