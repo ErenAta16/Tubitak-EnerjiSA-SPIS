@@ -27,3 +27,4 @@ __pycache__/
 /*.txt
 !requirements.txt
 !requirements-ui.txt
+!requirements-bench.txt

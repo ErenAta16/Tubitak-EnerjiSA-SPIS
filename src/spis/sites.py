@@ -10,7 +10,9 @@ from spis import config
 DEFAULT_SITE = "canakkale"
 PANEL_CLASS_JINKO_535 = "Jinko JKM535 bifacial"
 PANEL_CLASS_CANADIAN_SOLAR_POLY = "Canadian Solar poly-Si fixed (DKASC array 32, 5.3 kW)"
+PANEL_CLASS_HYUNDAI_H310 = "Hyundai HiS-M310TI mono-Si fixed tilt (PVDAQ 2107)"
 ALICE_SPRINGS_MODULE_TEMP_COEFF = -0.0041
+PVDAQ_2107_MODULE_TEMP_COEFF = -0.0041
 
 
 @dataclass(frozen=True)
@@ -99,10 +101,32 @@ def _balikesir_site() -> SiteConfig:
     )
 
 
+def _pvdaq_2107_site() -> SiteConfig:
+    return SiteConfig(
+        key="pvdaq_2107",
+        name="PVDAQ 2107 Farm Solar Array (Arbuckle CA)",
+        lat=38.996306,
+        lon=-122.134111,
+        raw_data_dir=config.DATA_EXTERNAL / "pvdaq" / "2107",
+        processed_namespace="pvdaq_2107",
+        panel_class=PANEL_CLASS_HYUNDAI_H310,
+        operational_data_available=True,
+        coordinates_provisional=False,
+        coordinates_note=(
+            "NREL PVDAQ system 2107; 893 kWdc Hyundai mono-Si fixed tilt 25 deg / 180 az; "
+            "Csa dry-summer agricultural site. Wash events inferred (no wash log)."
+        ),
+        analysis_start_date="2018-01-01",
+        analysis_end_date="2024-11-30",
+        module_temp_coeff=PVDAQ_2107_MODULE_TEMP_COEFF,
+    )
+
+
 SITES: dict[str, SiteConfig] = {
     "canakkale": _canakkale_site(),
     "balikesir": _balikesir_site(),
     "alice_springs": _alice_springs_site(),
+    "pvdaq_2107": _pvdaq_2107_site(),
 }
 
 

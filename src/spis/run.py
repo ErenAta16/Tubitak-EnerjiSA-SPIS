@@ -21,6 +21,8 @@ STAGES: tuple[str, ...] = (
     "inverter_anomaly",
     "field_visit",
     "external_validation",
+    "pvdaq_validation",
+    "method_benchmark",
 )
 
 ALL_STAGES: tuple[str, ...] = (
@@ -35,6 +37,8 @@ ALL_STAGES: tuple[str, ...] = (
     "inverter_anomaly",
     "field_visit",
     "external_validation",
+    "pvdaq_validation",
+    "method_benchmark",
 )
 
 STAGE_PHASES: dict[str, str] = {
@@ -49,6 +53,8 @@ STAGE_PHASES: dict[str, str] = {
     "inverter_anomaly": "P6",
     "field_visit": "P8",
     "external_validation": "P14",
+    "pvdaq_validation": "P17-A",
+    "method_benchmark": "P17-B",
 }
 
 
@@ -129,6 +135,20 @@ def stage_external_validation() -> None:
     run_external_validation()
 
 
+def stage_pvdaq_validation() -> None:
+    """Run PVDAQ 2107 utility-scale external validation."""
+    from spis.pvdaq_validation import run_pvdaq_validation
+
+    run_pvdaq_validation()
+
+
+def stage_method_benchmark() -> None:
+    """Benchmark SPIS vs RdTools SRR on Canakkale and PVDAQ 2107."""
+    from spis.method_benchmark import run_method_benchmark
+
+    run_method_benchmark()
+
+
 STAGE_HANDLERS: dict[str, Callable[[], None]] = {
     "ingest": stage_ingest,
     "clean": stage_clean,
@@ -141,6 +161,8 @@ STAGE_HANDLERS: dict[str, Callable[[], None]] = {
     "inverter_anomaly": stage_inverter_anomaly,
     "field_visit": stage_field_visit,
     "external_validation": stage_external_validation,
+    "pvdaq_validation": stage_pvdaq_validation,
+    "method_benchmark": stage_method_benchmark,
 }
 
 

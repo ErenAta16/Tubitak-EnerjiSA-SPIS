@@ -12,9 +12,9 @@ CI method for all sites: `clear_sky_pooled_weighted_by_n_fit` — weighted mean 
 |---|---:|---|---:|---:|---|---:|
 | Canakkale Hybrid GES | -0.1247 | [-0.1855, -0.0640] | 0.7270621311715896 | 0.6596967140685642 | no |  |
 | DKASC array 13 | 0.1674 | [-9.2212, 9.5559] | 0.029011772025135406 | 0.012842089587224917 | no | 56 |
-| DKASC array 18 | 0.0947 | [-4.7515, 4.9409] | 0.007203363819428786 | 0.011510800784584376 | no | 57 |
-| DKASC array 14 | -0.1437 | [-4.1452, 3.8577] | 0.7124716426818489 | 0.5459374485444846 | no | 57 |
-| DKASC array 32 | 0.5471 | [-5.0271, 6.1213] | 0.010688818955303988 | 0.020021620072582506 | no | 57 |
+| DKASC array 18 | 0.0947 | [-4.7515, 4.9409] | 0.007203363819428786 | 0.011510800784584593 | no | 57 |
+| DKASC array 14 | -0.1437 | [-4.1452, 3.8577] | 0.7124716426818489 | 0.5459374485444851 | no | 57 |
+| DKASC array 32 | 0.5471 | [-5.0271, 6.1213] | 0.010688818955303993 | 0.020021620072582506 | no | 57 |
 
 ## Daily energy channel selection (DKASC)
 
@@ -61,3 +61,24 @@ Utility-scale soiling validation should use an independently maintained plant wi
 - Array 32: Assumed -0.41 %/degC from Canadian Solar poly module datasheet class (CS6K-style); DKASC metadata does not publish a verified coefficient.
 
 Analysis window: 2023-01-01 .. 2025-10-22 (aligned with Canakkale).
+## PVDAQ 2107 utility-scale validation
+
+PVDAQ 2107 (893 kWdc Farm Solar Array, Arbuckle CA, Csa dry-summer agricultural) analysis window 2018-01-08 .. 2024-11-01 (2361 days with adequate 15-min coverage). Canakkale clear-sky rate -0.1247 %/day (CI [-0.1855, -0.0640]); PVDAQ 0.0908 %/day (CI [-0.5125, 0.6941]). PVDAQ clear-sky soiling CI spans zero — the utility-scale signal is not fully recoverable under inferred-cleaning segmentation despite the dry Csa climate; interpret with cleaning-inference and POA sensor caveats. Pollution HAC: Canakkale PM10 p=0.727, PVDAQ PM10 p=0.017 (accumulated CAMS spec after segment detrending). No operator wash log at PVDAQ; cleanings inferred from NASA precipitation and PI step recoveries only.
+
+CI method: `clear_sky_pooled_weighted_by_n_fit` (same as Canakkale P4).
+
+### Canakkale vs PVDAQ 2107
+
+| Site | Clear-sky rate (%/day) | 95% CI | CI width | Recoverable signal? | PM10 p | Dust p | Inferred cleanings |
+|---|---:|---|---:|---|---:|---:|---:|
+| Canakkale Hybrid GES | -0.1247 | [-0.1855, -0.0640] | 0.1215 | yes | 0.7270621311715896 | 0.6596967140685642 |  |
+| PVDAQ 2107 Farm Solar Array (Arbuckle CA) | 0.0908 | [-0.5125, 0.6941] | 1.2066 | no | 0.016810539637580727 | 0.08800801890841928 | 71 |
+
+### PVDAQ data access and channels
+
+- OEDI bucket: `oedi-data-lake`, prefix `pvdaq/2023-solar-data-prize/2107_OEDI/`
+- System: Farm Solar Array (893.0 kWdc), Arbuckle, CA, climate Csa.
+- Energy: Revenue-grade AC meter channel meter_revenue_grade_ac_output_meter_149578 is interval-mean kW (metadata units=kW, aggregation=avg); no cumulative energy counter is exposed in the prize export slices.
+- Precipitation: NASA POWER PRECTOTCORR (no onsite rain gauge in prize export)
+- Module temp coeff: Assumed -0.41 %/degC from Hyundai HiS-M310TI mono-Si datasheet class; PVDAQ metadata does not publish a verified coefficient.
+- Inferred cleaning (no wash log): rain >= 25 mm, PI step >= 7%, min gap 30 days.

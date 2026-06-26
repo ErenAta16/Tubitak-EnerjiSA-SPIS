@@ -78,6 +78,11 @@ DKASC_COUNTER_RATIO_MIN: float = 0.85
 DKASC_COUNTER_RATIO_MAX: float = 1.15
 DKASC_COUNTER_VALID_FRACTION: float = 0.95
 
+# P17 PVDAQ 2107: tighter inferred cleaning (NASA winter rain otherwise over-segments).
+PVDAQ_INFERRED_CLEANING_RAIN_MM: float = 25.0
+PVDAQ_INFERRED_CLEANING_PI_STEP_PCT: float = 7.0
+PVDAQ_INFERRED_CLEANING_MIN_DAYS_BETWEEN: int = 30
+
 # P4 washing optimization (ASSUMED until Enerjisa/EPIAS supply real values).
 PRODUCTION_UNITS: str = "kWh/day"
 PLANT_AC_CAPACITY_KW: float = INVERTER_AC_KVA * INVERTER_COUNT

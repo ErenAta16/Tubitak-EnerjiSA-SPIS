@@ -1,0 +1,2 @@
+# Optional benchmark dependencies (P17 RdTools SRR); core SPIS does not require these.
+rdtools>=3.0.0

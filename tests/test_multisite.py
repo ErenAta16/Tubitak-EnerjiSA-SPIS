@@ -18,11 +18,11 @@ from spis.inverter_anomaly import (
 from spis.site_comparison import compare_ground_to_cams, run_pollution_difference_tests
 from spis.sites import DEFAULT_SITE, SITES, get_site, site_processed_path
 
-CANAKKALE_MASTER_HASH = "bd1b07716649028b016f26d381216c6553c0ccc370ff2bd0cb88b61586c2c552"
+CANAKKALE_MASTER_HASH = "e1574bac5420e007ac3c04b35ab399d9c0daa089ac3490e210df8807b70ddcc2"
 
 
 def test_sites_registry_has_required_fields() -> None:
-    assert set(SITES) == {"canakkale", "balikesir", "alice_springs"}
+    assert set(SITES) == {"canakkale", "balikesir", "alice_springs", "pvdaq_2107"}
     can = get_site("canakkale")
     bal = get_site("balikesir")
     assert can.operational_data_available
