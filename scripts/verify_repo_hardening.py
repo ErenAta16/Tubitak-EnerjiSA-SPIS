@@ -185,9 +185,7 @@ def verify_repo_hardening() -> bool:
     LOGGER.info("- Forbidden strings absent from tracked files")
     LOGGER.info("- Report CSVs untracked; PNG figures remain tracked")
     LOGGER.info("- LICENSE + DATA_USE.md present; README updated")
-    LOGGER.info(
-        "- Coordinates: coarse default public; set PLANT_LAT/PLANT_LON in .env locally"
-    )
+    LOGGER.info("- Coordinates: coarse default public; set PLANT_LAT/PLANT_LON in .env locally")
     LOGGER.info(
         "- Canonical soiling rate unchanged at %.4f %%/day when processed data present",
         CANONICAL_SOILING_RATE,

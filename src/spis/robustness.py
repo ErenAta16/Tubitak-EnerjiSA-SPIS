@@ -213,17 +213,13 @@ def attach_ground_pollution(
             merged.loc[merged["ground_pm10"].notna(), "pi_residual"].notna().sum()
         ),
         "ground_pm10_accumulated_pairs": int(
-            merged.loc[
-                merged["ground_pm10_accumulated"].notna(), "pi_residual"
-            ].notna().sum()
+            merged.loc[merged["ground_pm10_accumulated"].notna(), "pi_residual"].notna().sum()
         ),
         "ground_pm2_5_daily_pairs": int(
             merged.loc[merged["ground_pm2_5"].notna(), "pi_residual"].notna().sum()
         ),
         "ground_pm2_5_accumulated_pairs": int(
-            merged.loc[
-                merged["ground_pm2_5_accumulated"].notna(), "pi_residual"
-            ].notna().sum()
+            merged.loc[merged["ground_pm2_5_accumulated"].notna(), "pi_residual"].notna().sum()
         ),
     }
     LOGGER.info("Ground pollution paired-day counts: %s", paired)
@@ -296,18 +292,14 @@ def pollution_daily_tests(frame: pd.DataFrame) -> pd.DataFrame:
     }
     for name, col in cams_specs.items():
         result = hac_regression(frame, "pi_residual", [col])
-        rows.append(
-            _pollution_result_row(f"pollution_{name}", name, col, "cams", result)
-        )
+        rows.append(_pollution_result_row(f"pollution_{name}", name, col, "cams", result))
 
     combined = hac_regression(frame, "pi_residual", list(cams_specs.values()))
     for name, col in cams_specs.items():
         coef = combined["coefficients"].get(col, {})
         rows.append(
             {
-                **_pollution_result_row(
-                    "pollution_combined", name, col, "cams", combined
-                ),
+                **_pollution_result_row("pollution_combined", name, col, "cams", combined),
                 "partial_r2": coef.get("partial_r2"),
                 "coef": coef.get("coef"),
                 "hac_ci_lower": coef.get("hac_ci_lower"),
@@ -326,9 +318,7 @@ def pollution_daily_tests(frame: pd.DataFrame) -> pd.DataFrame:
         if x_col not in frame.columns:
             continue
         result = hac_regression(frame, "pi_residual", [x_col])
-        rows.append(
-            _pollution_result_row(record_type, pollutant, x_col, "ground_uhki", result)
-        )
+        rows.append(_pollution_result_row(record_type, pollutant, x_col, "ground_uhki", result))
 
     return pd.DataFrame(rows)
 
@@ -462,9 +452,7 @@ def p4_verdict(
     valid_clear = segment_compare.dropna(subset=["clear_rate_pct_per_day"])
 
     pm10 = pollution.loc[pollution["record_type"] == "pollution_pm10"].iloc[0]
-    ground_acc = pollution.loc[
-        pollution["record_type"] == "pollution_ground_pm10_accumulated"
-    ]
+    ground_acc = pollution.loc[pollution["record_type"] == "pollution_ground_pm10_accumulated"]
     ground_pm10 = ground_acc.iloc[0] if not ground_acc.empty else None
 
     def _pollution_supported(row: pd.Series) -> bool:
@@ -479,13 +467,9 @@ def p4_verdict(
     ground_supported = _pollution_supported(ground_pm10) if ground_pm10 is not None else False
 
     if ground_pm10 is not None:
-        ground_daily = pollution.loc[
-            pollution["record_type"] == "pollution_ground_pm10_daily"
-        ]
+        ground_daily = pollution.loc[pollution["record_type"] == "pollution_ground_pm10_daily"]
         ground_daily_row = ground_daily.iloc[0] if not ground_daily.empty else None
-        daily_significant = (
-            ground_daily_row is not None and _pollution_supported(ground_daily_row)
-        )
+        daily_significant = ground_daily_row is not None and _pollution_supported(ground_daily_row)
 
         if ground_supported:
             pollution_verdict = "partially supported (in-situ PM10 accumulated)"
@@ -499,7 +483,8 @@ def p4_verdict(
             if daily_significant and ground_daily_row is not None:
                 insitu_note += (
                     f". Sensitivity: daily raw ground PM10 HAC p="
-                    f"{ground_daily_row['p_value']:.3f} (not the P3.5 accumulated spec)"
+                    f"{ground_daily_row['p_value']:.3f} "
+                    "(not the accumulated-pollution specification)"
                 )
         else:
             pollution_verdict = "inconclusive (in-situ PM10)"
@@ -709,16 +694,12 @@ def write_robustness_report(
 ) -> None:
     """Write reports/SOILING_ROBUSTNESS.md."""
     pm10 = pollution.loc[pollution["record_type"] == "pollution_pm10"].iloc[0]
-    ground_acc = pollution.loc[
-        pollution["record_type"] == "pollution_ground_pm10_accumulated"
-    ]
+    ground_acc = pollution.loc[pollution["record_type"] == "pollution_ground_pm10_accumulated"]
     ground_daily = pollution.loc[pollution["record_type"] == "pollution_ground_pm10_daily"]
     ground_pm25_acc = pollution.loc[
         pollution["record_type"] == "pollution_ground_pm2_5_accumulated"
     ]
-    ground_pm25_daily = pollution.loc[
-        pollution["record_type"] == "pollution_ground_pm2_5_daily"
-    ]
+    ground_pm25_daily = pollution.loc[pollution["record_type"] == "pollution_ground_pm2_5_daily"]
     path = config.REPORTS / "SOILING_ROBUSTNESS.md"
     sensor_note = (
         "The SCADA irradiance column (ISINIM) is a plant-level daily integrated "
@@ -748,9 +729,7 @@ def write_robustness_report(
         _pollution_line(pm10, "CAMS PM10 accumulated"),
     ]
     if not ground_acc.empty:
-        comparison_lines.append(
-            _pollution_line(ground_acc.iloc[0], "Ground PM10 accumulated")
-        )
+        comparison_lines.append(_pollution_line(ground_acc.iloc[0], "Ground PM10 accumulated"))
     if not ground_daily.empty:
         comparison_lines.append(_pollution_line(ground_daily.iloc[0], "Ground PM10 daily"))
     if not ground_pm25_acc.empty:
@@ -758,9 +737,7 @@ def write_robustness_report(
             _pollution_line(ground_pm25_acc.iloc[0], "Ground PM2.5 accumulated")
         )
     if not ground_pm25_daily.empty:
-        comparison_lines.append(
-            _pollution_line(ground_pm25_daily.iloc[0], "Ground PM2.5 daily")
-        )
+        comparison_lines.append(_pollution_line(ground_pm25_daily.iloc[0], "Ground PM2.5 daily"))
 
     paired_note = ""
     if verdict.get("ground_pm10_accumulated_pairs") is not None:
@@ -774,7 +751,7 @@ def write_robustness_report(
 
     content = "\n".join(
         [
-            "# P3.5 Soiling Robustness Verdict",
+            "# Soiling Robustness Verdict",
             "",
             "## Clear-sky slope sharpening",
             "",
@@ -812,7 +789,7 @@ def write_robustness_report(
             "",
             sensor_note,
             "",
-            "## P4 recommendation",
+            "## Scheduling recommendation",
             "",
             f"Robust enough to schedule: **{verdict['robust_enough_for_scheduling']}**.",
             "",

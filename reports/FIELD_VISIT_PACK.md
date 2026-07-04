@@ -11,7 +11,7 @@ Checklist for on-site verification at Canakkale Hybrid GES. Balikesir section is
 - [ ] Log last sensor cleaning date; photograph condition
 - [ ] Note whether sensor is co-located with soiled module strings
 
-## Canakkale — inverter inspection priorities (P6 descriptive ranking)
+## Canakkale — inverter inspection priorities (descriptive ranking)
 
 Threshold: median relative performance < 0.95 vs daily peer median (not fault diagnosis).
 
@@ -25,7 +25,7 @@ Threshold: median relative performance < 0.95 vs daily peer median (not fault di
 
 - [ ] **INV2** median relative 0.941
 
-## Canakkale — soiling / washing context (P4)
+## Canakkale — soiling / washing context
 
 - Model-optimal wash interval **T* = 99 days** (rate CI band 81..139 days).
 - Compare actual inter-wash gaps in the washing log to T*.

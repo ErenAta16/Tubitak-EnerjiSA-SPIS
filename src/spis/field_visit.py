@@ -41,16 +41,14 @@ def _load_washing_context() -> dict[str, Any]:
         "t_star_days": float(central["t_star_days"]),
         "t_star_ci_low": float(central["t_star_ci_low_days"]),
         "t_star_ci_high": float(central["t_star_ci_high_days"]),
-        "note": "Model T* uses P3.5 clear-sky pooled soiling rate and real 2023 PTF.",
+        "note": "Model T* uses the clear-sky pooled soiling rate and real 2023 PTF.",
     }
 
 
 def _site_coordinate_label(site_key: str, site) -> str:
     """Format coordinates for reports without disclosing precise Canakkale location."""
     if site_key == "canakkale" and config.PLANT_COORD_SOURCE != "env":
-        return (
-            "coarse public default (set PLANT_LAT/PLANT_LON in .env for precise location)"
-        )
+        return "coarse public default (set PLANT_LAT/PLANT_LON in .env for precise location)"
     return f"lat={site.lat}, lon={site.lon}"
 
 
@@ -81,7 +79,7 @@ def build_field_visit_pack() -> Path:
         "- [ ] Log last sensor cleaning date; photograph condition",
         "- [ ] Note whether sensor is co-located with soiled module strings",
         "",
-        "## Canakkale — inverter inspection priorities (P6 descriptive ranking)",
+        "## Canakkale — inverter inspection priorities (descriptive ranking)",
         "",
         f"Threshold: median relative performance < {UNDERPERFORMER_MEDIAN_THRESHOLD:.2f} "
         "vs daily peer median (not fault diagnosis).",
@@ -108,7 +106,7 @@ def build_field_visit_pack() -> Path:
     lines.extend(
         [
             "",
-            "## Canakkale — soiling / washing context (P4)",
+            "## Canakkale — soiling / washing context",
             "",
         ]
     )

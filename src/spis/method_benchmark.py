@@ -251,7 +251,7 @@ def write_method_benchmark_report(table: pd.DataFrame) -> str:
         "",
         "## Representation conversion",
         "",
-        "- **SPIS (P3.5):** segment Theil-Sen slopes on clear-sky days, pooled with "
+        "- **SPIS:** segment Theil-Sen slopes on clear-sky days, pooled with "
         f"`{CANONICAL_CI_METHOD}` CI half-width.",
         "- **RdTools SRR:** insolation-weighted daily PI (`pi_temp_corrected`) with "
         "stochastic cleaning detection (`clean_criterion='shift'`); headline outputs are "

@@ -83,6 +83,7 @@ def log_plant_coordinate_source() -> None:
         PLANT_LON,
     )
 
+
 # Derived at clean time from LOW_IRRADIATION_PERCENTILE; snapshot ~1125 Wh/m2/day (P2).
 LOW_IRRADIATION_CUTOFF: float | None = None
 LOW_IRRADIATION_PERCENTILE: float = 0.05

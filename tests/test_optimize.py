@@ -69,15 +69,9 @@ def test_ci_band_ordering_sane() -> None:
     wash = config.WASH_COST_TL_CENTRAL
     energy = 11_000.0
     price = 2189.30
-    t_slow = optimal_interval_closed_form(
-        wash, energy, price, rate_for_scenario(band, "low")
-    )
-    t_point = optimal_interval_closed_form(
-        wash, energy, price, rate_for_scenario(band, "point")
-    )
-    t_fast = optimal_interval_closed_form(
-        wash, energy, price, rate_for_scenario(band, "high")
-    )
+    t_slow = optimal_interval_closed_form(wash, energy, price, rate_for_scenario(band, "low"))
+    t_point = optimal_interval_closed_form(wash, energy, price, rate_for_scenario(band, "point"))
+    t_fast = optimal_interval_closed_form(wash, energy, price, rate_for_scenario(band, "high"))
     assert t_slow >= t_point >= t_fast
     ci_low = min(t_fast, t_slow)
     ci_high = max(t_fast, t_slow)

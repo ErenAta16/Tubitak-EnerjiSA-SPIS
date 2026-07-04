@@ -61,13 +61,9 @@ def detect_inferred_cleaning_events(
 ) -> pd.DataFrame:
     """Infer wash-like events from heavy rain and abrupt PI recoveries."""
     rain_threshold = config.INFERRED_CLEANING_RAIN_MM if rain_mm is None else rain_mm
-    step_threshold = (
-        config.INFERRED_CLEANING_PI_STEP_PCT if pi_step_pct is None else pi_step_pct
-    )
+    step_threshold = config.INFERRED_CLEANING_PI_STEP_PCT if pi_step_pct is None else pi_step_pct
     min_gap = (
-        config.INFERRED_CLEANING_MIN_DAYS_BETWEEN
-        if min_days_between is None
-        else min_days_between
+        config.INFERRED_CLEANING_MIN_DAYS_BETWEEN if min_days_between is None else min_days_between
     )
 
     frame = daily.sort_values("date").copy()
@@ -661,7 +657,7 @@ def write_external_validation_report(
         "",
         f"CI method for all sites: `{CANONICAL_CI_METHOD}` — weighted mean of segment "
         "clear-sky Theil-Sen rates by `clear_n_fit`, with half-width = mean segment "
-        "Theil-Sen CI width / 2 (same as Canakkale P4 `p4_verdict`).",
+        "Theil-Sen CI width / 2 (the same method as the Canakkale scheduling verdict).",
         "",
         "| Site / array | Clear-sky rate (%/day) | 95% CI | PM10 HAC p | Dust HAC p | "
         "Pollution sig.? | Inferred cleanings |",
@@ -743,7 +739,7 @@ def write_external_validation_report(
             "Utility-scale soiling validation should use an independently maintained plant with "
             "documented washing or long soiling accumulation, e.g. NREL PVDAQ system 2107 "
             "(~893 kW, California agricultural area) from the public OEDI/AWS bucket. "
-            "Ingest was not attempted in P16.",
+            "This dataset was outside the scope of the initial external-validation run.",
             "",
             "## Temperature coefficient assumptions",
             "",

@@ -1,4 +1,4 @@
-# P4 Washing Schedule Optimization
+# Washing Schedule Optimization
 
 ## Production units
 
@@ -12,7 +12,7 @@ Pooled clean-baseline daily energy is computed per segment from SCADA at runtime
 
 ## Soiling model
 
-Linear loss L(t)=r*t with P3.5 clear-sky pooled r=0.00125/day (CI band 0.00064..0.00185).
+Linear loss L(t)=r*t with clear-sky pooled r=0.00125/day (CI band 0.00064..0.00185).
 Observed r is a **lower bound** (irradiance-sensor co-soiling); true optimal
 intervals may be **shorter** than model output.
 
@@ -40,7 +40,7 @@ Mean actual inter-wash gap: **79 days** (8 of 30 swept cost/price combos are nea
 
 ## Caveats
 
-- Modest soiling rates; pollution not a daily driver (P3.5).
+- Modest soiling rates; pollution is not supported as a daily driver.
 - Rain provides parallel natural cleaning (mean event recovery ~0).
 - Wash cost ASSUMED; PTF central is real 2023 only.
 
@@ -48,14 +48,14 @@ Mean actual inter-wash gap: **79 days** (8 of 30 swept cost/price combos are nea
 
 - Lower wash cost or higher PTF -> shorter T* (wash more often).
 - Higher wash cost or lower PTF -> longer T*.
-- True soiling rate above P3.5 point estimate -> shorter T*.
+- True soiling rate above the clear-sky pooled point estimate -> shorter T*.
 
 ## Assumptions logged
 
 - `wash_cost_tl_sweep` = (50000.0, 100000.0, 150000.0, 200000.0, 300000.0) (ASSUMED): ASSUMED plausible range for full-plant brush/robot wash (TBD from Enerjisa); 50k-300k TL spans a plausible TL/kW_AC range for nominal plant AC capacity.
 - `wash_cost_tl_central` = 150000.0 (ASSUMED): ASSUMED plausible range for full-plant brush/robot wash (TBD from Enerjisa); 50k-300k TL spans a plausible TL/kW_AC range for nominal plant AC capacity.
 - `ptf_tl_mwh_sweep` = (1000.0, 1500.0, 2000.0, 2500.0, 3000.0, 3500.0) (ASSUMED): ASSUMED sensitivity range for 2024-2025 when only 2023 PTF CSV is available; sweep grid points are not realized prices.
-- `ptf_tl_mwh_central_legacy_assumed` = 2000.0 (ASSUMED): Previous P4 central price before real 2023 PTF ingest
+- `ptf_tl_mwh_central_legacy_assumed` = 2000.0 (ASSUMED): Previous central price before real 2023 PTF ingest
 - `ptf_tl_mwh_central` = 2189.302656392694 (real_2023): REAL 2023 annual-mean PTF from EPIAS CSV in data/external/epias_ptf/; 2023-only nominal TL; 2024-2025 not supplied. If wash cost is later given in current TL without rebasing, the 2023 nominal price biases T* longer.
-- `linear_soiling_model` = L(t)=r*t (P3.5): Theil-Sen clear-sky pooled rate; loss fraction grows linearly with days since wash
-- `sensor_co_soiling` = lower_bound (P3.5 caveat): Reference irradiance co-soiling cancels part of loss in PI; true r may be higher
+- `linear_soiling_model` = L(t)=r*t: Theil-Sen clear-sky pooled rate; loss fraction grows linearly with days since wash
+- `sensor_co_soiling` = lower_bound: Reference irradiance co-soiling cancels part of loss in PI; true r may be higher

@@ -27,14 +27,14 @@ STREAMLIT_APP = ROOT / "app" / "streamlit_app.py"
 CONFIG_TOML = ROOT / ".streamlit" / "config.toml"
 
 
-def test_ui_build_tag_is_p22() -> None:
-    assert UI_BUILD == "2026-06-25-p22-visual-system"
+def test_ui_build_tag_is_public_facing() -> None:
+    assert UI_BUILD == "2026-06-25-visual-system"
 
 
 def test_config_toml_uses_teal_theme() -> None:
     text = CONFIG_TOML.read_text(encoding="utf-8")
-    assert "primaryColor = \"#0E7C66\"" in text
-    assert "backgroundColor = \"#FAFAF8\"" in text
+    assert 'primaryColor = "#0E7C66"' in text
+    assert 'backgroundColor = "#FAFAF8"' in text
 
 
 def test_t_returns_single_language() -> None:

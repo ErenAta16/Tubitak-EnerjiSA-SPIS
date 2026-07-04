@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from spis import config
 from spis.reporting import (
     FIGURE_MANIFEST,
@@ -11,6 +13,8 @@ from spis.reporting import (
     cross_check_metrics,
     run_reporting,
 )
+
+pytestmark = pytest.mark.integration
 
 
 def test_reporting_figures_have_csv_companions() -> None:

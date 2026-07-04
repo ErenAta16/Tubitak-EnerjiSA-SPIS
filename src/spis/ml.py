@@ -247,9 +247,7 @@ def build_modelling_frame(master: pd.DataFrame, segments: pd.DataFrame) -> pd.Da
     frame["month_cos"] = np.cos(2.0 * np.pi * month / 12.0)
     feature_cols = list(FEATURE_COLUMNS)
     before = len(frame)
-    frame = frame.dropna(
-        subset=feature_cols + [TARGET_ABSOLUTE, TARGET_SOILING_RATIO]
-    )
+    frame = frame.dropna(subset=feature_cols + [TARGET_ABSOLUTE, TARGET_SOILING_RATIO])
     frame = frame.sort_values("date").reset_index(drop=True)
     LOGGER.info(
         "ML modelling frame: %s rows (%s dropped for null features/targets)",
@@ -418,9 +416,7 @@ def blocked_cv_metrics(
     def _std(values: list[float]) -> float:
         return float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
 
-    framing = (
-        TARGET_SOILING_RATIO if target_col == TARGET_SOILING_RATIO else TARGET_ABSOLUTE
-    )
+    framing = TARGET_SOILING_RATIO if target_col == TARGET_SOILING_RATIO else TARGET_ABSOLUTE
     return CvMetrics(
         model_name=model_name,
         target_framing=framing,
@@ -443,9 +439,7 @@ def evaluate_test_models(
     test_metrics: list[ModelMetrics] = []
     cv_metrics: list[CvMetrics] = []
     fitted_models: dict[str, Any] = {}
-    framing = (
-        TARGET_SOILING_RATIO if target_col == TARGET_SOILING_RATIO else TARGET_ABSOLUTE
-    )
+    framing = TARGET_SOILING_RATIO if target_col == TARGET_SOILING_RATIO else TARGET_ABSOLUTE
 
     for model_name in model_names:
         cv_metrics.append(blocked_cv_metrics(split.train, target_col, model_name))
@@ -577,16 +571,14 @@ def pollution_verdict(importance: pd.DataFrame) -> str:
     pollution = POLLUTION_FEATURES
     ranked = importance.reset_index(drop=True)
     ranks = {
-        row["feature"]: idx + 1
-        for idx, row in ranked.iterrows()
-        if row["feature"] in pollution
+        row["feature"]: idx + 1 for idx, row in ranked.iterrows() if row["feature"] in pollution
     }
     top_pollutant = ranked.loc[ranked["feature"].isin(pollution)].iloc[0]
     n_features = len(ranked)
     if top_pollutant["importance_mean"] <= 0 or top_pollutant["ci_upper"] <= 0:
         return (
             "Pollution features rank low with non-positive permutation importance; "
-            "corroborates P3.5/P11 (pollution not a daily driver)."
+            "corroborates the finding that pollution is not a daily driver."
         )
     if ranks.get(top_pollutant["feature"], n_features) <= 3:
         return (
@@ -597,7 +589,7 @@ def pollution_verdict(importance: pd.DataFrame) -> str:
     return (
         f"Pollution features present but mid/lower rank (best: {top_pollutant['feature']} "
         f"#{ranks[top_pollutant['feature']]} of {n_features}); weak corroboration of "
-        "pollution thesis, consistent with P3.5/P11."
+        "the pollution thesis, consistent with the robustness analysis."
     )
 
 
@@ -610,9 +602,7 @@ def _format_cv_cell(cv: CvMetrics, metric: str) -> str:
 
 
 def _metrics_row(model_name: str, metrics: ModelMetrics) -> str:
-    return (
-        f"| {model_name} | {metrics.mae:.5f} | {metrics.rmse:.5f} | {metrics.r2:.4f} |"
-    )
+    return f"| {model_name} | {metrics.mae:.5f} | {metrics.rmse:.5f} | {metrics.r2:.4f} |"
 
 
 def _save_figure(name: str, fig: plt.Figure, plot_frame: pd.DataFrame) -> None:
@@ -634,12 +624,12 @@ def write_ml_results_report(
     """Write reports/ML_RESULTS.md with P13 full algorithm panel."""
     path = config.REPORTS / "ML_RESULTS.md"
     lines = [
-        "# P5/P12/P13 Machine Learning Results",
+        "# Machine Learning Results",
         "",
-        "## Target (P12 fair framing, unchanged in P13)",
+        "## Target",
         "",
         "Predict `soiling_ratio = 100 * pi_temp_corrected / segment_baseline`, where",
-        f"`segment_baseline` is the P3 median of the first {config.SOILING_BASELINE_CLEAN_DAYS} "
+        f"`segment_baseline` is the median of the first {config.SOILING_BASELINE_CLEAN_DAYS} "
         "post-wash clean days. Baseline is operationally known after a wash (not leakage).",
         "",
         "## Leakage control",
@@ -651,7 +641,7 @@ def write_ml_results_report(
         f"Modelling frame: train={split.train.shape[0]}, test={split.test.shape[0]} "
         f"(split {split.split_date.date()}, latest {split.test_fraction:.0%} held out).",
         "",
-        "## P13 algorithm panel (soiling_ratio, sorted by blocked CV R2)",
+        "## Algorithm panel (soiling_ratio, sorted by blocked CV R2)",
         "",
         "| rank | model | test MAE | test RMSE | test R2 | CV R2 (mean +/- std) | CV>=0 |",
         "|---:|---|---:|---:|---:|---:|---|",
@@ -668,12 +658,12 @@ def write_ml_results_report(
     lines.extend(
         [
             "",
-            "## Legacy absolute-PI comparison (P12 context)",
+            "## Legacy absolute-PI comparison",
             "",
             f"Absolute-PI RF held-out R2 = {absolute_rf_r2:.4f}; soiling_ratio RF test R2 = "
             f"{rf_row['test_r2']:.4f}. Reframing aligns ML with within-segment physics.",
             "",
-            "## Multi-family verdict (P13)",
+            "## Multi-family verdict",
             "",
             panel_verdict_text,
             "",
@@ -744,7 +734,7 @@ def plot_panel_cv_r2(comparison: pd.DataFrame) -> None:
     ax.set_yticks(y_pos)
     ax.set_yticklabels(ordered["model_name"])
     ax.set_xlabel("R2")
-    ax.set_title("P13 algorithm panel: blocked CV R2 vs held-out test R2 (soiling_ratio)")
+    ax.set_title("Algorithm panel: blocked CV R2 vs held-out test R2 (soiling_ratio)")
     ax.legend(loc="lower right")
     fig.tight_layout()
     _save_figure("ml_panel_cv_r2_comparison", fig, ordered)
@@ -766,7 +756,7 @@ def plot_permutation_importance(importance: pd.DataFrame, model_name: str) -> No
     ax.set_yticklabels(importance["feature"])
     ax.invert_yaxis()
     ax.set_xlabel("Permutation importance (test set)")
-    ax.set_title(f"P13 {model_name} permutation importance (soiling_ratio target)")
+    ax.set_title(f"{model_name} permutation importance (soiling_ratio target)")
     fig.tight_layout()
     png = config.FIGURES / "ml_permutation_importance.png"
     csv = config.FIGURES / "ml_permutation_importance.csv"
@@ -790,7 +780,7 @@ def plot_predicted_vs_actual(
     ax.plot(test["date"], test["predicted"], label="predicted", color="C1", alpha=0.8)
     ax.set_xlabel("Date")
     ax.set_ylabel(target_col)
-    ax.set_title(f"P12 RF: predicted vs actual {target_col} (held-out test)")
+    ax.set_title(f"RF: predicted vs actual {target_col} (held-out test)")
     ax.legend()
     fig.tight_layout()
     png = config.FIGURES / "ml_predicted_vs_actual.png"
@@ -825,7 +815,7 @@ def plot_partial_dependence(
         baseline = float(avg[0])
         slope_pct = (float(avg[-1]) - baseline) / max(float(grid[-1] - grid[0]), 1.0) * 100.0
         ax.set_title(
-            f"PD days_since_wash (RF slope ~{slope_pct:.3f}%/day; P3.5={p35_rate_pct:.3f}%/day)"
+            f"PD days_since_wash (RF slope ~{slope_pct:.3f}%/day; pooled={p35_rate_pct:.3f}%/day)"
         )
     else:
         ax.set_title(f"Partial dependence: {feature}")
@@ -949,9 +939,7 @@ def run_ml_analysis() -> dict[str, Any]:
     master = read_processed(MASTER_INPUT_NAME)
     segments = read_processed(SOILING_OUTPUT_NAME)
     robustness_path = config.DATA_PROCESSED / "soiling_robustness.parquet"
-    robustness = (
-        read_processed("soiling_robustness") if robustness_path.exists() else None
-    )
+    robustness = read_processed("soiling_robustness") if robustness_path.exists() else None
 
     frame = build_modelling_frame(master, segments)
     split = time_based_split(frame)
@@ -959,9 +947,7 @@ def run_ml_analysis() -> dict[str, Any]:
     panel_test, panel_cv, fitted_models = evaluate_test_models(
         split, TARGET_SOILING_RATIO, PANEL_MODELS
     )
-    absolute_test, absolute_cv, _ = evaluate_test_models(
-        split, TARGET_ABSOLUTE, LEGACY_MODELS
-    )
+    absolute_test, absolute_cv, _ = evaluate_test_models(split, TARGET_ABSOLUTE, LEGACY_MODELS)
 
     comparison = build_panel_comparison(panel_test, panel_cv)
     panel_verdict_text, investigation_model = panel_verdict(comparison)
@@ -984,12 +970,10 @@ def run_ml_analysis() -> dict[str, Any]:
         if investigation_model in TREE_PANEL_MODELS:
             x_train, _ = prepare_xy(split.train, TARGET_SOILING_RATIO)
             p35_rate = p35_soiling_rate_pct(segments, robustness)
-            plot_partial_dependence(
-                model, x_train, "days_since_wash", p35_rate_pct=p35_rate
-            )
-            top_pollutant = importance.loc[
-                importance["feature"].isin(POLLUTION_FEATURES)
-            ].iloc[0]["feature"]
+            plot_partial_dependence(model, x_train, "days_since_wash", p35_rate_pct=p35_rate)
+            top_pollutant = importance.loc[importance["feature"].isin(POLLUTION_FEATURES)].iloc[0][
+                "feature"
+            ]
             plot_partial_dependence(
                 model,
                 x_train,

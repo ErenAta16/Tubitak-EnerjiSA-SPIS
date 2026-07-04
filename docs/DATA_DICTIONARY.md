@@ -1,7 +1,7 @@
 # Data Dictionary
 
-Seeded from initial profiling. Cursor appends per-loader summaries during P1, and
-external-source provenance during P2.
+Seeded from initial profiling and maintained alongside loader summaries and
+external-source provenance.
 
 ## Raw inputs (verified)
 
@@ -15,7 +15,7 @@ external-source provenance during P2.
 ## Derived
 - pi = GUNLUK TOTAL URETIM / ISINIM (daily irradiance-normalized yield)
 
-## P1 interim frames (loaded 2026-06-24)
+## Interim ingestion frames (loaded 2026-06-24)
 
 | artifact | rows | date span | null counts |
 |---|---|---|---|
@@ -29,7 +29,7 @@ Each frame is written to `data/interim/<name>.parquet` by `spis.ingest.ingest_al
 Inverter loader logs 935 long-form rows with negative meteo_irradiance (night sensor
 noise); values are retained, not imputed.
 
-## External sources (P2 pulls, 2026-06-24)
+## External sources (initial pulls, 2026-06-24)
 
 | source | variables | auth | url | units | coverage |
 |---|---|---|---|---|---|
@@ -47,12 +47,12 @@ Median ratio `(SCADA / 1000) / NASA` = 1.057, so SCADA irradiation is consistent
 **Wh/m²/day** (divide by 1000 to compare with NASA kWh/m²/day). SCADA remains the
 primary irradiance for PI; NASA solar is a units cross-check only.
 
-### Low-irradiation cutoff (P2)
+### Low-irradiation cutoff
 
 Rule: 5th percentile of SCADA daily `irradiation` (`LOW_IRRADIATION_PERCENTILE = 0.05`).
 Computed cutoff: **1125.26 Wh/m²/day**. Rain-day threshold: `PRECTOTCORR >= 1.0 mm/day`.
 
-## P2 master table (`data/processed/master_daily.parquet`)
+## Master table (`data/processed/master_daily.parquet`)
 
 1026 rows (complete daily spine 2023-01-01..2025-10-22). 750 `is_clean_observation`
 days after exclusion filters (276 days fail at least one filter; filters overlap).
@@ -89,7 +89,7 @@ days after exclusion filters (276 days fail at least one filter; filters overlap
 | pi_temp_corrected | float | PI corrected to 25 degC reference |
 | rain_day | bool | PRECTOTCORR >= 1 mm/day |
 | low_irradiation | bool | irradiation below 5th-percentile cutoff |
-| is_clean_observation | bool | Passes all P3 soiling-fit exclusion flags |
+| is_clean_observation | bool | Passes all soiling-fit exclusion flags |
 
 Filter day counts (not mutually exclusive): downtime 70, curtailment 4, fault 2,
 low irradiation 52, rain 205; 750 days pass all filters.
@@ -97,7 +97,7 @@ low irradiation 52, rain 205; 750 days pass all filters.
 Figure: `reports/figures/pi_temp_correction_comparison.png` (+ CSV) compares 14-day
 rolling means of raw vs temperature-corrected PI.
 
-## P3 soiling segments (`data/processed/soiling_segments.parquet`)
+## Soiling segments (`data/processed/soiling_segments.parquet`)
 
 Seven post-wash segments (segment 0 excluded). Primary fit signal:
 `pi_temp_corrected` on rain-free `is_clean_observation` days. Baseline = median of
@@ -123,13 +123,13 @@ first 3 clean days after wash (`SOILING_BASELINE_CLEAN_DAYS`). Robust slope =
 | spring | -0.001 | 1 |
 | summer | -0.055 | 2 |
 
-### P4 recommended rate
+### Recommended scheduling rate
 
 | metric | value %/day |
 |---|---:|
 | Pooled (variance-weighted) | -0.090 |
 | Pooled approx 95% CI | [-0.177, -0.004] |
-| Summer mean (recommended for P4) | -0.055 |
+| Summer mean (initial scheduling input) | -0.055 |
 | Winter mean | +0.025 |
 
 Rationale: summer rate used for scheduling because peak soiling loss accumulates in
@@ -143,9 +143,9 @@ dry months; pooled rate is cross-season fallback. See `reports/SOILING_INTERPRET
 | accumulated dust | -0.04 | 0.93 | [-0.89, 0.88] |
 | accumulated AOD | -0.05 | 0.91 | [-0.90, 0.78] |
 
-## P3.5 soiling robustness (`data/processed/soiling_robustness.parquet`)
+## Soiling robustness (`data/processed/soiling_robustness.parquet`)
 
-Reads `master_daily.parquet` and `soiling_segments.parquet` only (no P1-P3 re-run).
+Reads `master_daily.parquet` and `soiling_segments.parquet` without rebuilding upstream data.
 At analysis time joins NASA `CLRSKY_SFC_SW_DWN` from cache and computes
 `clearness_index = nasa_allsky_kwh_m2 / nasa_clrsky_kwh_m2`. High-clearness filter
 k >= 0.7 (tercile cutoff ~0.977 logged). Re-fits per-segment Theil-Sen slopes on
@@ -168,7 +168,7 @@ rain-free clean days within that subset.
 Regression n = 557 after dropna (750 clean input days). Verdict: **not supported at
 daily resolution (n~750)**.
 
-### P4 rate update (post P3.5)
+### Robust scheduling-rate update
 
 Clear-sky pooled rate **-0.125 %/day** (uncertainty half-width 0.061). See
 `reports/SOILING_ROBUSTNESS.md`.
@@ -179,7 +179,7 @@ SCADA `irradiation` (ISINIM) is likely in-plane reference irradiation. Co-soilin
 the reference sensor partially cancels module soiling in PI; observed rates are a
 lower bound on physical soiling. No sensor datasheet in repo; not corrected.
 
-## P4 washing optimization (`data/processed/washing_optimization.parquet`)
+## Washing optimization (`data/processed/washing_optimization.parquet`)
 
 Reads `master_daily`, `soiling_segments`, `soiling_robustness`, and `washing_events`.
 Economic inputs are **ASSUMED sweeps** until Enerjisa wash costs and EPIAS PTF are
@@ -198,7 +198,7 @@ runtime (absolute kWh/day withheld; proprietary).
 
 ### Soiling-loss model
 
-Linear L(t)=r*t with P3.5 clear-sky pooled r=**0.00125/day** (CI 0.00064..0.00185).
+Linear L(t)=r*t with clear-sky pooled r=**0.00125/day** (CI 0.00064..0.00185).
 Observed r is a lower bound (irradiance-sensor co-soiling); true T* may be shorter.
 
 ### Central optimum (real 2023 PTF annual mean 2189.30 TL/MWh; wash cost ASSUMED 150k TL)
@@ -217,7 +217,7 @@ Figures: `optimize_cost_vs_interval`, `optimize_t_star_heatmap`,
 `optimize_actual_vs_optimal` under `reports/figures/`. Report:
 `reports/WASHING_SCHEDULE.md`.
 
-## P5 machine learning (`data/processed/ml_model_metrics.parquet`)
+## Machine learning (`data/processed/ml_model_metrics.parquet`)
 
 Random Forest corroboration layer on exogenous features only (production and
 irradiation excluded to prevent PI leakage). Target: `pi_temp_corrected` on clean
@@ -247,4 +247,4 @@ Notes:
 - NASA POWER solar is satellite-derived; use it only to sanity-check the SCADA
   irradiation column, not to replace it.
 - PTF needs free EPIAS registration -> per the data-access protocol, Cursor stops
-  and requests EPTR_USERNAME / EPTR_PASSWORD when it reaches P4.
+  and requests EPTR_USERNAME / EPTR_PASSWORD when it reaches price retrieval.

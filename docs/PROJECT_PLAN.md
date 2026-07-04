@@ -1,7 +1,8 @@
 # SPIS — Project Plan
 
 Solar Performance Improvement System. TUBITAK 2209-B. Owner: Eren Ata.
-Engine: this repo, driven locally by Cursor; planning/prompts by the project manager.
+The repository contains the reproducible analysis pipeline, validation checks, reports,
+and public Streamlit product.
 
 ## What the data actually supports (read first)
 - Backbone series: daily production + irradiation, 2023-01-01..2025-10-22, complete.
@@ -12,24 +13,22 @@ Engine: this repo, driven locally by Cursor; planning/prompts by the project man
 - Headline scientific result = soiling rate between washes -> economic optimum
   washing interval. Random Forest is the secondary, proposal-required layer.
 
-## Phases (mapped to proposal work packages WP1..WP7)
+## Engineering work packages
 
-P0  Repo scaffold, env, config, data contract, CI lint/test.            (enabler)
-P1  Ingestion: typed loaders for all four inputs, schema validation.    (WP1)
-P2  Cleaning + external enrichment: downtime/curtailment filtering,
-    NASA POWER weather pull, temperature-corrected PI series.           (WP1/WP2)
-P3  Soiling analysis: inter-wash segmentation, soiling-rate fits,
-    washing recovery, season & method comparison.                       (WP3/WP4)
-P4  Economic optimization: cost model, optimal washing interval,
-    sensitivity sweep on wash cost and electricity price.               (WP4)
-P5  ML layer: feature build, time-split Random Forest, GridSearchCV,
-    MAE/RMSE/R2, feature importance, comparison to soiling model.       (WP3/WP4)
-P6  Inverter-level anomaly detection on 2025 data (underperformers).    (supporting)
-P7  Visualization + reporting: figures, tables, reproducible report.    (WP5/WP7)
-P8  Field-validation support pack for the site visit.                   (WP6)
+| Work package | Scope | Proposal alignment |
+|---|---|---|
+| Platform foundation | Repository structure, configuration, data contract, linting and tests | Enabler |
+| Data ingestion | Typed loaders for the four plant inputs and schema validation | WP1 |
+| Cleaning and enrichment | Downtime/curtailment filtering, NASA POWER weather, temperature-corrected PI | WP1/WP2 |
+| Soiling analysis | Inter-wash segmentation, robust soiling-rate fits, washing recovery and seasonal comparison | WP3/WP4 |
+| Washing economics | Cost model, optimal interval and wash-cost/electricity-price sensitivity | WP4 |
+| Machine learning | Leakage-controlled features, blocked time-series validation and physical-baseline comparison | WP3/WP4 |
+| Inverter screening | Descriptive peer-relative performance ranking on the available inverter window | Supporting |
+| Reporting and product | Reproducible figures, written reports and the Streamlit dashboard | WP5/WP7 |
+| Field validation | Site-visit checklist and reference-sensor inspection guidance | WP6 |
 
-Each phase = one branch + one PR into main. Verifier subagent runs before commit.
+## Definition of done
 
-## Definition of done per phase
-Code + unit tests pass, verifier PASS, figures+CSVs in reports/, plan/dictionary
-updated, PR merged with professional English commits.
+Code, unit tests and verifier checks pass; generated artifacts are reproducible;
+methodology and data documentation are updated; and public outputs contain no
+proprietary plant data.

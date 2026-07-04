@@ -146,10 +146,7 @@ def analyze_pvdaq(master: pd.DataFrame) -> dict[str, Any]:
     ci_lower = clear_pooled["pooled_ci_lower"]
     ci_upper = clear_pooled["pooled_ci_upper"]
     signal_recoverable = (
-        pd.notna(ci_lower)
-        and pd.notna(ci_upper)
-        and ci_lower < 0.0
-        and ci_upper < 0.0
+        pd.notna(ci_lower) and pd.notna(ci_upper) and ci_lower < 0.0 and ci_upper < 0.0
     )
 
     return {
@@ -272,7 +269,7 @@ def append_pvdaq_to_external_validation_report(
         "",
         verdict,
         "",
-        f"CI method: `{CANONICAL_CI_METHOD}` (same as Canakkale P4).",
+        f"CI method: `{CANONICAL_CI_METHOD}` (same as the Canakkale scheduling analysis).",
         "",
         "### Canakkale vs PVDAQ 2107",
         "",

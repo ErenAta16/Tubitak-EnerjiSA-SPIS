@@ -59,25 +59,17 @@ def verify_robustness() -> bool:
     if abs(coef["coef"] - float(pm10["coef"])) > 1e-8:
         failures.append("Independent HAC recompute differs from stored PM10 coefficient")
 
-    ground_row = output.loc[
-        output["record_type"] == "pollution_ground_pm10_accumulated"
-    ]
+    ground_row = output.loc[output["record_type"] == "pollution_ground_pm10_accumulated"]
     if ground_row.empty:
         failures.append("Ground PM10 accumulated regression row missing")
     else:
         ground_stored = ground_row.iloc[0]
-        ground_recomputed = hac_regression(
-            daily, "pi_residual", ["ground_pm10_accumulated"]
-        )
+        ground_recomputed = hac_regression(daily, "pi_residual", ["ground_pm10_accumulated"])
         ground_coef = ground_recomputed["coefficients"]["ground_pm10_accumulated"]
         if abs(ground_coef["coef"] - float(ground_stored["coef"])) > 1e-8:
-            failures.append(
-                "Independent HAC recompute differs from stored ground PM10 coefficient"
-            )
+            failures.append("Independent HAC recompute differs from stored ground PM10 coefficient")
         if not ground_recomputed.get("hac_se_wider_than_naive"):
-            failures.append(
-                "HAC SE sanity: ground PM10 expected wider SE than naive OLS"
-            )
+            failures.append("HAC SE sanity: ground PM10 expected wider SE than naive OLS")
         if paired["ground_pm10_accumulated_pairs"] != int(ground_stored["n_obs"]):
             failures.append(
                 "Ground PM10 paired-day count does not match regression n "

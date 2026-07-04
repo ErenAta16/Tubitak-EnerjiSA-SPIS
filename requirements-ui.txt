@@ -1,2 +1,0 @@
-# UI dependencies — see requirements-streamlit.txt for Streamlit Community Cloud.
--r requirements-streamlit.txt

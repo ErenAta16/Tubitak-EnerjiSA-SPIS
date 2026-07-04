@@ -93,9 +93,7 @@ def test_canonical_clear_sky_pooled_matches_p4_style() -> None:
     )
     pooled = canonical_clear_sky_pooled(segment_compare)
     assert pooled["ci_method"] == CANONICAL_CI_METHOD
-    expected_rate = float(
-        pd.Series([-0.10, -0.15]).dot(pd.Series([100.0, 80.0])) / 180.0
-    )
+    expected_rate = float(pd.Series([-0.10, -0.15]).dot(pd.Series([100.0, 80.0])) / 180.0)
     assert pooled["pooled_rate"] == pytest.approx(expected_rate)
     ci_width = ((0.14 - 0.06) + (0.20 - 0.10)) / 2.0
     assert pooled["ci_half_width"] == pytest.approx(ci_width / 2.0)
