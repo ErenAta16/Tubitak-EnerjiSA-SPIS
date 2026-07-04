@@ -6,7 +6,7 @@ RdTools SRR (Deceglie et al. 2018) targets a sawtooth of dry accumulation plus s
 
 ## Representation conversion
 
-- **SPIS (P3.5):** segment Theil-Sen slopes on clear-sky days, pooled with `clear_sky_pooled_weighted_by_n_fit` CI half-width.
+- **SPIS:** segment Theil-Sen slopes on clear-sky days, pooled with `clear_sky_pooled_weighted_by_n_fit` CI half-width.
 - **RdTools SRR:** insolation-weighted daily PI (`pi_temp_corrected`) with stochastic cleaning detection (`clean_criterion='shift'`); headline outputs are soiling ratio (energy lost fraction) plus per-interval `%/day` slopes in `soiling_interval_summary`.
 - **Comparison rule:** qualitative sign agreement and order-of-magnitude check; no parameter tuning to force match.
 

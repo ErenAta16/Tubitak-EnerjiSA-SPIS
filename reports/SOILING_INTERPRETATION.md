@@ -1,4 +1,4 @@
-# P3 Soiling Analysis Interpretation
+# Soiling Analysis Interpretation
 
 Generated from `python -m spis.run --stage soiling` on the Canakkale master table.
 
@@ -35,7 +35,7 @@ Segment-level correlation of soiling rate vs accumulated CAMS PM10 is weak and n
 significant at n=7 (r ≈ -0.16, p ≈ 0.73). This is reported as **association only**,
 not causation; more segments or daily residuals would be needed for stronger inference.
 
-## P4 input
+## Scheduling input
 
 Recommended schedule input: **summer mean rate -0.055 %/day** (segments 4 and 7).
 Pooled rate **-0.090 %/day** (95% approx CI -0.18 to -0.004) is the cross-season fallback.

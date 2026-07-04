@@ -661,7 +661,7 @@ def write_external_validation_report(
         "",
         f"CI method for all sites: `{CANONICAL_CI_METHOD}` — weighted mean of segment "
         "clear-sky Theil-Sen rates by `clear_n_fit`, with half-width = mean segment "
-        "Theil-Sen CI width / 2 (same as Canakkale P4 `p4_verdict`).",
+        "Theil-Sen CI width / 2 (the same method as the Canakkale scheduling verdict).",
         "",
         "| Site / array | Clear-sky rate (%/day) | 95% CI | PM10 HAC p | Dust HAC p | "
         "Pollution sig.? | Inferred cleanings |",
@@ -743,7 +743,7 @@ def write_external_validation_report(
             "Utility-scale soiling validation should use an independently maintained plant with "
             "documented washing or long soiling accumulation, e.g. NREL PVDAQ system 2107 "
             "(~893 kW, California agricultural area) from the public OEDI/AWS bucket. "
-            "Ingest was not attempted in P16.",
+            "This dataset was outside the scope of the initial external-validation run.",
             "",
             "## Temperature coefficient assumptions",
             "",

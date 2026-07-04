@@ -272,7 +272,7 @@ def append_pvdaq_to_external_validation_report(
         "",
         verdict,
         "",
-        f"CI method: `{CANONICAL_CI_METHOD}` (same as Canakkale P4).",
+        f"CI method: `{CANONICAL_CI_METHOD}` (same as the Canakkale scheduling analysis).",
         "",
         "### Canakkale vs PVDAQ 2107",
         "",

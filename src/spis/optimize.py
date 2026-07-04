@@ -275,7 +275,7 @@ def build_assumption_rows(central_price: float, central_source: str) -> pd.DataF
             "parameter": "ptf_tl_mwh_central_legacy_assumed",
             "value": str(config.PTF_TL_MWH_CENTRAL_ASSUMED_LEGACY),
             "source": "ASSUMED",
-            "basis": "Previous P4 central price before real 2023 PTF ingest",
+            "basis": "Previous central price before real 2023 PTF ingest",
         },
         {
             "record_type": "real_2023",
@@ -288,7 +288,7 @@ def build_assumption_rows(central_price: float, central_source: str) -> pd.DataF
             "record_type": "assumption",
             "parameter": "linear_soiling_model",
             "value": "L(t)=r*t",
-            "source": "P3.5",
+            "source": "clear-sky pooled analysis",
             "basis": (
                 "Theil-Sen clear-sky pooled rate; loss fraction grows linearly "
                 "with days since wash"
@@ -298,7 +298,7 @@ def build_assumption_rows(central_price: float, central_source: str) -> pd.DataF
             "record_type": "assumption",
             "parameter": "sensor_co_soiling",
             "value": "lower_bound",
-            "source": "P3.5 caveat",
+            "source": "sensor co-soiling caveat",
             "basis": (
                 "Reference irradiance co-soiling cancels part of loss in PI; "
                 "true r may be higher"
@@ -511,7 +511,7 @@ def plot_cost_curve(
     ax.set_xlabel("Wash interval (days)")
     ax.set_ylabel("Total cost (TL/day)")
     ax.set_title(
-        f"P4 total cost vs wash interval (real 2023 PTF {central_price:.0f} TL/MWh central)"
+        f"Total cost vs wash interval (real 2023 PTF {central_price:.0f} TL/MWh central)"
     )
     ax.legend(fontsize=8)
     fig.tight_layout()
@@ -600,7 +600,7 @@ def write_washing_schedule_report(
     comp = price_comparison.iloc[0]
     path = config.REPORTS / "WASHING_SCHEDULE.md"
     lines = [
-        "# P4 Washing Schedule Optimization",
+        "# Washing Schedule Optimization",
         "",
         "## Production units",
         "",
@@ -618,7 +618,7 @@ def write_washing_schedule_report(
         "",
         "## Soiling model",
         "",
-        f"Linear loss L(t)=r*t with P3.5 clear-sky pooled "
+        f"Linear loss L(t)=r*t with clear-sky pooled "
         f"r={rate_band.point:.5f}/day (CI band {rate_band.low:.5f}..{rate_band.high:.5f}).",
         "Observed r is a **lower bound** (irradiance-sensor co-soiling); true optimal",
         "intervals may be **shorter** than model output.",
@@ -653,7 +653,7 @@ def write_washing_schedule_report(
         "",
         "## Caveats",
         "",
-        "- Modest soiling rates; pollution not a daily driver (P3.5).",
+        "- Modest soiling rates; pollution is not supported as a daily driver.",
         "- Rain provides parallel natural cleaning (mean event recovery ~0).",
         "- Wash cost ASSUMED; PTF central is real 2023 only.",
         "",
@@ -661,7 +661,7 @@ def write_washing_schedule_report(
         "",
         "- Lower wash cost or higher PTF -> shorter T* (wash more often).",
         "- Higher wash cost or lower PTF -> longer T*.",
-        "- True soiling rate above P3.5 point estimate -> shorter T*.",
+        "- True soiling rate above the clear-sky pooled point estimate -> shorter T*.",
         "",
         "## Assumptions logged",
         "",

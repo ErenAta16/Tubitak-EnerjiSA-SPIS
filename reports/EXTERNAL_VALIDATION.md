@@ -6,7 +6,7 @@ Primary conclusion: the external generalization test is INCONCLUSIVE for recover
 
 ## Comparison table (canonical CI method)
 
-CI method for all sites: `clear_sky_pooled_weighted_by_n_fit` — weighted mean of segment clear-sky Theil-Sen rates by `clear_n_fit`, with half-width = mean segment Theil-Sen CI width / 2 (same as Canakkale P4 `p4_verdict`).
+CI method for all sites: `clear_sky_pooled_weighted_by_n_fit` — weighted mean of segment clear-sky Theil-Sen rates by `clear_n_fit`, with half-width = mean segment Theil-Sen CI width / 2 (the same method as the Canakkale scheduling verdict).
 
 | Site / array | Clear-sky rate (%/day) | 95% CI | PM10 HAC p | Dust HAC p | Pollution sig.? | Inferred cleanings |
 |---|---:|---|---:|---:|---|---:|
@@ -51,7 +51,7 @@ Data sources: four fixed-tilt DKASC silicon research arrays (~5 kW AC each, arra
 
 ## Recommended future external test
 
-Utility-scale soiling validation should use an independently maintained plant with documented washing or long soiling accumulation, e.g. NREL PVDAQ system 2107 (~893 kW, California agricultural area) from the public OEDI/AWS bucket. Ingest was not attempted in P16.
+Utility-scale soiling validation should use an independently maintained plant with documented washing or long soiling accumulation, e.g. NREL PVDAQ system 2107 (~893 kW, California agricultural area) from the public OEDI/AWS bucket. This dataset was outside the scope of the initial external-validation run.
 
 ## Temperature coefficient assumptions
 
@@ -65,7 +65,7 @@ Analysis window: 2023-01-01 .. 2025-10-22 (aligned with Canakkale).
 
 PVDAQ 2107 (893 kWdc Farm Solar Array, Arbuckle CA, Csa dry-summer agricultural) analysis window 2018-01-08 .. 2024-11-01 (2361 days with adequate 15-min coverage). Canakkale clear-sky rate -0.1247 %/day (CI [-0.1855, -0.0640]); PVDAQ 0.0908 %/day (CI [-0.5125, 0.6941]). PVDAQ clear-sky soiling CI spans zero — the utility-scale signal is not fully recoverable under inferred-cleaning segmentation despite the dry Csa climate; interpret with cleaning-inference and POA sensor caveats. Pollution HAC: Canakkale PM10 p=0.727, PVDAQ PM10 p=0.017 (accumulated CAMS spec after segment detrending). No operator wash log at PVDAQ; cleanings inferred from NASA precipitation and PI step recoveries only.
 
-CI method: `clear_sky_pooled_weighted_by_n_fit` (same as Canakkale P4).
+CI method: `clear_sky_pooled_weighted_by_n_fit` (same as the Canakkale scheduling analysis).
 
 ### Canakkale vs PVDAQ 2107
 

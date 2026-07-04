@@ -586,7 +586,7 @@ def pollution_verdict(importance: pd.DataFrame) -> str:
     if top_pollutant["importance_mean"] <= 0 or top_pollutant["ci_upper"] <= 0:
         return (
             "Pollution features rank low with non-positive permutation importance; "
-            "corroborates P3.5/P11 (pollution not a daily driver)."
+            "corroborates the finding that pollution is not a daily driver."
         )
     if ranks.get(top_pollutant["feature"], n_features) <= 3:
         return (
@@ -597,7 +597,7 @@ def pollution_verdict(importance: pd.DataFrame) -> str:
     return (
         f"Pollution features present but mid/lower rank (best: {top_pollutant['feature']} "
         f"#{ranks[top_pollutant['feature']]} of {n_features}); weak corroboration of "
-        "pollution thesis, consistent with P3.5/P11."
+        "the pollution thesis, consistent with the robustness analysis."
     )
 
 
@@ -634,12 +634,12 @@ def write_ml_results_report(
     """Write reports/ML_RESULTS.md with P13 full algorithm panel."""
     path = config.REPORTS / "ML_RESULTS.md"
     lines = [
-        "# P5/P12/P13 Machine Learning Results",
+        "# Machine Learning Results",
         "",
-        "## Target (P12 fair framing, unchanged in P13)",
+        "## Target",
         "",
         "Predict `soiling_ratio = 100 * pi_temp_corrected / segment_baseline`, where",
-        f"`segment_baseline` is the P3 median of the first {config.SOILING_BASELINE_CLEAN_DAYS} "
+        f"`segment_baseline` is the median of the first {config.SOILING_BASELINE_CLEAN_DAYS} "
         "post-wash clean days. Baseline is operationally known after a wash (not leakage).",
         "",
         "## Leakage control",
@@ -651,7 +651,7 @@ def write_ml_results_report(
         f"Modelling frame: train={split.train.shape[0]}, test={split.test.shape[0]} "
         f"(split {split.split_date.date()}, latest {split.test_fraction:.0%} held out).",
         "",
-        "## P13 algorithm panel (soiling_ratio, sorted by blocked CV R2)",
+        "## Algorithm panel (soiling_ratio, sorted by blocked CV R2)",
         "",
         "| rank | model | test MAE | test RMSE | test R2 | CV R2 (mean +/- std) | CV>=0 |",
         "|---:|---|---:|---:|---:|---:|---|",
@@ -668,12 +668,12 @@ def write_ml_results_report(
     lines.extend(
         [
             "",
-            "## Legacy absolute-PI comparison (P12 context)",
+            "## Legacy absolute-PI comparison",
             "",
             f"Absolute-PI RF held-out R2 = {absolute_rf_r2:.4f}; soiling_ratio RF test R2 = "
             f"{rf_row['test_r2']:.4f}. Reframing aligns ML with within-segment physics.",
             "",
-            "## Multi-family verdict (P13)",
+            "## Multi-family verdict",
             "",
             panel_verdict_text,
             "",
@@ -744,7 +744,7 @@ def plot_panel_cv_r2(comparison: pd.DataFrame) -> None:
     ax.set_yticks(y_pos)
     ax.set_yticklabels(ordered["model_name"])
     ax.set_xlabel("R2")
-    ax.set_title("P13 algorithm panel: blocked CV R2 vs held-out test R2 (soiling_ratio)")
+    ax.set_title("Algorithm panel: blocked CV R2 vs held-out test R2 (soiling_ratio)")
     ax.legend(loc="lower right")
     fig.tight_layout()
     _save_figure("ml_panel_cv_r2_comparison", fig, ordered)
@@ -766,7 +766,7 @@ def plot_permutation_importance(importance: pd.DataFrame, model_name: str) -> No
     ax.set_yticklabels(importance["feature"])
     ax.invert_yaxis()
     ax.set_xlabel("Permutation importance (test set)")
-    ax.set_title(f"P13 {model_name} permutation importance (soiling_ratio target)")
+    ax.set_title(f"{model_name} permutation importance (soiling_ratio target)")
     fig.tight_layout()
     png = config.FIGURES / "ml_permutation_importance.png"
     csv = config.FIGURES / "ml_permutation_importance.csv"
@@ -790,7 +790,7 @@ def plot_predicted_vs_actual(
     ax.plot(test["date"], test["predicted"], label="predicted", color="C1", alpha=0.8)
     ax.set_xlabel("Date")
     ax.set_ylabel(target_col)
-    ax.set_title(f"P12 RF: predicted vs actual {target_col} (held-out test)")
+    ax.set_title(f"RF: predicted vs actual {target_col} (held-out test)")
     ax.legend()
     fig.tight_layout()
     png = config.FIGURES / "ml_predicted_vs_actual.png"
@@ -825,7 +825,8 @@ def plot_partial_dependence(
         baseline = float(avg[0])
         slope_pct = (float(avg[-1]) - baseline) / max(float(grid[-1] - grid[0]), 1.0) * 100.0
         ax.set_title(
-            f"PD days_since_wash (RF slope ~{slope_pct:.3f}%/day; P3.5={p35_rate_pct:.3f}%/day)"
+            f"PD days_since_wash (RF slope ~{slope_pct:.3f}%/day; "
+            f"pooled={p35_rate_pct:.3f}%/day)"
         )
     else:
         ax.set_title(f"Partial dependence: {feature}")

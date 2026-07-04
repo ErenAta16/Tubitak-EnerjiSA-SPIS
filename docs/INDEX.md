@@ -2,17 +2,17 @@
 
 All markdown reports under `reports/`. Figures live in `reports/figures/`.
 
-| Report | Phase | Summary |
+| Report | Topic | Summary |
 |---|---|---|
-| [FINAL_REPORT.md](../reports/FINAL_REPORT.md) | P7 | Consolidated project narrative and figure list |
-| [FINAL_RESULTS_TABLE.md](../reports/FINAL_RESULTS_TABLE.md) | P7 | Key numeric results table |
-| [WASHING_SCHEDULE.md](../reports/WASHING_SCHEDULE.md) | P4 | Economic wash interval T*, sensitivity, caveats |
-| [SOILING_INTERPRETATION.md](../reports/SOILING_INTERPRETATION.md) | P3 | Segment slopes and washing recovery |
-| [SOILING_ROBUSTNESS.md](../reports/SOILING_ROBUSTNESS.md) | P3.5 / P11 | Clear-sky pooled rate; CAMS vs in-situ pollution HAC |
-| [ML_RESULTS.md](../reports/ML_RESULTS.md) | P5 / P12 / P13 | Soiling_ratio ML panel (15 algorithms); blocked CV metrics |
-| [SITE_COMPARISON.md](../reports/SITE_COMPARISON.md) | P9 | Canakkale vs Balikesir CAMS; ground-vs-CAMS cross-check |
-| [INVERTER_ANOMALY.md](../reports/INVERTER_ANOMALY.md) | P6 | Descriptive inverter peer ranking |
-| [FIELD_VISIT_PACK.md](../reports/FIELD_VISIT_PACK.md) | P8 | On-site checklist incl. reference sensor inspection |
+| [FINAL_REPORT.md](../reports/FINAL_REPORT.md) | Research synthesis | Consolidated project narrative and figure list |
+| [FINAL_RESULTS_TABLE.md](../reports/FINAL_RESULTS_TABLE.md) | Results summary | Key numeric results table |
+| [WASHING_SCHEDULE.md](../reports/WASHING_SCHEDULE.md) | Washing economics | Economic wash interval T*, sensitivity, caveats |
+| [SOILING_INTERPRETATION.md](../reports/SOILING_INTERPRETATION.md) | Soiling analysis | Segment slopes and washing recovery |
+| [SOILING_ROBUSTNESS.md](../reports/SOILING_ROBUSTNESS.md) | Soiling robustness | Clear-sky pooled rate; CAMS vs in-situ pollution HAC |
+| [ML_RESULTS.md](../reports/ML_RESULTS.md) | Machine learning | Soiling_ratio model panel (15 algorithms); blocked CV metrics |
+| [SITE_COMPARISON.md](../reports/SITE_COMPARISON.md) | Site comparison | Canakkale vs Balikesir CAMS; ground-vs-CAMS cross-check |
+| [INVERTER_ANOMALY.md](../reports/INVERTER_ANOMALY.md) | Inverter screening | Descriptive inverter peer ranking |
+| [FIELD_VISIT_PACK.md](../reports/FIELD_VISIT_PACK.md) | Field validation | On-site checklist incl. reference sensor inspection |
 
 ## Figure bundles (CSV + PNG)
 

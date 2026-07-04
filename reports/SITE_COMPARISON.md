@@ -50,4 +50,4 @@ In-situ PM from sim.csb.gov.tr daily exports (StationDataDownloadNewData). Canak
 - **canakkale**: Ground PM10 exceeds CAMS on median; CAMS captures direction but may underestimate absolute local PM10.
 - **balikesir**: Ground PM10 exceeds CAMS on median; CAMS captures direction but may underestimate absolute local PM10.
 
-Implication for SPIS: national ground PM10 at Canakkale exceeds CAMS by ~2.4x on median (30.1 vs 12.5 ug/m3). Weak daily pollution–performance links in P3.5 remain credible: CAMS supports relative context but not absolute local particulate load.
+Implication for SPIS: national ground PM10 at Canakkale exceeds CAMS by ~2.4x on median (30.1 vs 12.5 ug/m3). Weak daily pollution–performance links remain credible: CAMS supports relative context but not absolute local particulate load.

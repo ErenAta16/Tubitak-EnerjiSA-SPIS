@@ -499,7 +499,8 @@ def p4_verdict(
             if daily_significant and ground_daily_row is not None:
                 insitu_note += (
                     f". Sensitivity: daily raw ground PM10 HAC p="
-                    f"{ground_daily_row['p_value']:.3f} (not the P3.5 accumulated spec)"
+                    f"{ground_daily_row['p_value']:.3f} "
+                    "(not the accumulated-pollution specification)"
                 )
         else:
             pollution_verdict = "inconclusive (in-situ PM10)"
@@ -774,7 +775,7 @@ def write_robustness_report(
 
     content = "\n".join(
         [
-            "# P3.5 Soiling Robustness Verdict",
+            "# Soiling Robustness Verdict",
             "",
             "## Clear-sky slope sharpening",
             "",
@@ -812,7 +813,7 @@ def write_robustness_report(
             "",
             sensor_note,
             "",
-            "## P4 recommendation",
+            "## Scheduling recommendation",
             "",
             f"Robust enough to schedule: **{verdict['robust_enough_for_scheduling']}**.",
             "",

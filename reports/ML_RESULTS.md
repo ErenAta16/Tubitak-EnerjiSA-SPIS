@@ -1,9 +1,9 @@
-# P5/P12/P13 Machine Learning Results
+# Machine Learning Results
 
-## Target (P12 fair framing, unchanged in P13)
+## Target
 
 Predict `soiling_ratio = 100 * pi_temp_corrected / segment_baseline`, where
-`segment_baseline` is the P3 median of the first 3 post-wash clean days. Baseline is operationally known after a wash (not leakage).
+`segment_baseline` is the median of the first 3 post-wash clean days. Baseline is operationally known after a wash (not leakage).
 
 ## Leakage control
 
@@ -12,7 +12,7 @@ Non-tree models use `Pipeline(StandardScaler, model)` with scaling fit inside ea
 
 Modelling frame: train=301, test=75 (split 2024-11-01, latest 20% held out).
 
-## P13 algorithm panel (soiling_ratio, sorted by blocked CV R2)
+## Algorithm panel (soiling_ratio, sorted by blocked CV R2)
 
 | rank | model | test MAE | test RMSE | test R2 | CV R2 (mean +/- std) | CV>=0 |
 |---:|---|---:|---:|---:|---:|---|
@@ -32,11 +32,11 @@ Modelling frame: train=301, test=75 (split 2024-11-01, latest 20% held out).
 | 14 | linear_regression | 13.05467 | 15.54701 | -1.1278 | -6.1539 +/- 6.9979 | no |
 | 15 | mlp | 30.02775 | 40.41783 | -13.3808 | -30.7018 +/- 36.7152 | no |
 
-## Legacy absolute-PI comparison (P12 context)
+## Legacy absolute-PI comparison
 
 Absolute-PI RF held-out R2 = -0.7842; soiling_ratio RF test R2 = -0.5585. Reframing aligns ML with within-segment physics.
 
-## Multi-family verdict (P13)
+## Multi-family verdict
 
 No algorithm in the 15-model panel achieves non-negative blocked CV R2 **and** beats the days_since_wash trend on held-out test. No model reaches CV R2 >= 0; Best CV R2: **svr_rbf** (-0.4396 +/- 0.5911). The negative ML finding now holds across linear, kernel, tree, boosting, and neural families — the simple physical trend suffices.
 

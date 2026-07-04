@@ -1,4 +1,4 @@
-# P3.5 Soiling Robustness Verdict
+# Soiling Robustness Verdict
 
 ## Clear-sky slope sharpening
 
@@ -19,7 +19,7 @@ Side-by-side HAC regressions on trend-removed PI residuals:
 | Ground PM2.5 accumulated | 496 | 2.4660754331530698e-05 | [-5.102133428891431e-05, 0.0001003428429519757] | 0.0019208086357748178 | 0.5230521560312753 |
 | Ground PM2.5 daily | 496 | -0.00110567347481522 | [-0.0051404877632903745, 0.002929140813659935] | 0.00073278941463506 | 0.5912017189333534 |
 
-Verdict: **not supported at daily resolution (confirmed with in-situ PM10)**. CAMS attenuation concern resolved: ground PM10 accumulated also null. Sensitivity: daily raw ground PM10 HAC p=0.028 (not the P3.5 accumulated spec). Association only; not proven causation.
+Verdict: **not supported at daily resolution (confirmed with in-situ PM10)**. CAMS attenuation concern resolved: ground PM10 accumulated also null. Sensitivity: daily raw ground PM10 HAC p=0.028 (not the accumulated-pollution specification). Association only; not proven causation.
 
 ## Spatial proxy caveat (in-situ PM)
 
@@ -34,7 +34,7 @@ Rain share of positive cleaning uplift: 74.0% vs washing 26.0%.
 
 The SCADA irradiance column (ISINIM) is a plant-level daily integrated irradiation signal, likely from an in-plane reference sensor. If that sensor soiling tracks module soiling, true panel degradation is partially cancelled in PI = production/irradiation, so observed soiling rates are a lower bound on physical soiling. No sensor datasheet was found in the repository; this limitation is not corrected, only flagged.
 
-## P4 recommendation
+## Scheduling recommendation
 
 Robust enough to schedule: **True**.
 

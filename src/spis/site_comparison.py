@@ -374,7 +374,7 @@ def write_site_comparison_report(
                         "Implication for SPIS: national ground PM10 at Canakkale exceeds CAMS "
                         f"by ~{ratio:.1f}x on median ({can_row.iloc[0]['ground_median']:.1f} vs "
                         f"{can_row.iloc[0]['cams_median']:.1f} ug/m3). Weak daily pollution–"
-                        "performance links in P3.5 remain credible: CAMS supports relative "
+                        "performance links remain credible: CAMS supports relative "
                         "context but not absolute local particulate load.",
                     ]
                 )

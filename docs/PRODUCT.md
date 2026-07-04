@@ -14,7 +14,7 @@ environmental comparison when operational data is unavailable).
 - Daily production + irradiance workbook
 - Downtime / curtailment log
 - Panel washing event dates
-- Inverter daily production (for P6 screening)
+- Inverter daily production (for descriptive peer screening)
 
 Stored under `data/raw/` (gitignored). Schema in `docs/DATA_DICTIONARY.md`.
 
@@ -28,18 +28,18 @@ Stored under `data/raw/` (gitignored). Schema in `docs/DATA_DICTIONARY.md`.
 ### Optional
 
 - EPIAS PTF CSV files in `data/external/epias_ptf/` (2023 supplied; 2024–2025 from
-  seffaflik.epias.com.tr extends P4)
+  seffaflik.epias.com.tr extends the economic optimization)
 
 ## Outputs
 
 | Artifact | Location | Description |
 |---|---|---|
-| Master daily table | `data/processed/master_daily.parquet` | P2 analysis spine |
-| Soiling segments | `data/processed/soiling_segments.parquet` | P3 inter-wash slopes |
-| Robustness | `data/processed/soiling_robustness.parquet` | P3.5 clear-sky pooled rate |
-| Washing optimization | `data/processed/washing_optimization.parquet` | P4 T* and sweeps |
-| Site comparison | `data/processed/site_comparison.parquet` | P9 environmental + ground check |
-| Inverter anomaly | `data/processed/inverter_anomaly.parquet` | P6 peer ranking |
+| Master daily table | `data/processed/master_daily.parquet` | Analysis-ready daily spine |
+| Soiling segments | `data/processed/soiling_segments.parquet` | Inter-wash slopes |
+| Robustness | `data/processed/soiling_robustness.parquet` | Clear-sky pooled rate |
+| Washing optimization | `data/processed/washing_optimization.parquet` | T* and sensitivity sweeps |
+| Site comparison | `data/processed/site_comparison.parquet` | Environmental + ground check |
+| Inverter anomaly | `data/processed/inverter_anomaly.parquet` | Descriptive peer ranking |
 | Reports | `reports/*.md` | Human-readable findings |
 | Figures | `reports/figures/*.{png,csv}` | Publication plots (300 dpi) |
 
@@ -72,11 +72,11 @@ Canakkale keeps legacy flat processed paths for regression compatibility.
   with modules (see `reports/FIELD_VISIT_PACK.md`).
 - CAMS gridded pollution does not match absolute ground PM10; national-station cross-
   check documented in `reports/SITE_COMPARISON.md`.
-- P4 wash cost is **ASSUMED**; PTF central uses real 2023 only unless extended CSVs
+- Wash cost is **ASSUMED**; PTF central uses real 2023 only unless extended CSVs
   are supplied.
-- P5–P13 ML: 15-algorithm panel on fair soiling_ratio target; all blocked CV R²
-  negative — not used for scheduling decisions.
-- P6 inverter ranking is **descriptive**, not diagnostic.
+- Machine learning: a 15-model panel on the within-segment `soiling_ratio` target
+  produced negative blocked CV R² values throughout and is not used for scheduling.
+- Inverter ranking is **descriptive**, not diagnostic.
 - Balikesir site coordinates and Bandirma ground-station proxy are **PROVISIONAL**.
 
 ## Verification
