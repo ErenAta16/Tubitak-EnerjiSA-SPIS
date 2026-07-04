@@ -24,6 +24,10 @@ __pycache__/
 # os
 .DS_Store
 
+# local development-agent configuration
+.cursor/
+docs/CURSOR_PROMPT_PLAYBOOK.md
+
 # derived report tables (regenerated locally; PNG figures stay tracked)
 reports/figures/*.csv
 reports/*.csv
@@ -34,6 +38,5 @@ reports/*.csv
 /*.kmz
 /*.txt
 !requirements.txt
-!requirements-ui.txt
 !requirements-bench.txt
 !requirements-streamlit.txt
