@@ -71,9 +71,7 @@ def verify_optimize() -> bool:
 
     robustness = read_processed("soiling_robustness")
     band = load_soiling_rate_band(robustness)
-    pooled = float(
-        output.loc[output["segment_id"] == -1, "clean_baseline_kwh_day"].iloc[0]
-    )
+    pooled = float(output.loc[output["segment_id"] == -1, "clean_baseline_kwh_day"].iloc[0])
     central_price, _ = load_ptf_central_price()
     recomputed = optimal_interval_closed_form(
         config.WASH_COST_TL_CENTRAL,
@@ -88,9 +86,7 @@ def verify_optimize() -> bool:
 
     cheap = build_sensitivity_sweep(pooled, band, wash_costs=(50_000.0,), prices=(3500.0,))
     costly = build_sensitivity_sweep(pooled, band, wash_costs=(300_000.0,), prices=(1000.0,))
-    t_cheap = float(
-        cheap.loc[cheap["rate_scenario"] == "point", "t_star_closed_form_days"].iloc[0]
-    )
+    t_cheap = float(cheap.loc[cheap["rate_scenario"] == "point", "t_star_closed_form_days"].iloc[0])
     t_costly = float(
         costly.loc[costly["rate_scenario"] == "point", "t_star_closed_form_days"].iloc[0]
     )

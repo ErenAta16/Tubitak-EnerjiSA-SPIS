@@ -89,8 +89,7 @@ def verify_ml() -> bool:
         (TARGET_ABSOLUTE, LEGACY_MODELS),
     ):
         test_rows = output.loc[
-            (output["record_type"] == "test_metrics")
-            & (output["target_framing"] == framing)
+            (output["record_type"] == "test_metrics") & (output["target_framing"] == framing)
         ]
         if len(test_rows) != len(models):
             failures.append(
@@ -166,9 +165,7 @@ def verify_ml() -> bool:
     ]
     any_non_negative = bool((panel_cmp["cv_r2_mean"] >= 0).any())
     if inv_model and len(importance) != len(FEATURE_COLUMNS):
-        failures.append(
-            f"Investigation model set but expected {len(FEATURE_COLUMNS)} importances"
-        )
+        failures.append(f"Investigation model set but expected {len(FEATURE_COLUMNS)} importances")
     if not inv_model and not importance.empty:
         failures.append("Permutation importance present without investigation model")
     if not any_non_negative and inv_model:

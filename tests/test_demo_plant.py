@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 
 import pytest
 
 from spis.demo_plant import (
     DEMO_PLANT_DIR,
-    DEMO_PLANT_KEY,
     demo_data_available,
     generate_demo_plant_artifacts,
     load_demo_headline_metrics,

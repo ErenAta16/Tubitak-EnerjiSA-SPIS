@@ -120,8 +120,7 @@ def verify_external_validation() -> bool:
             and abs(can_hi - CANONICAL_CANAKKALE_CI[1]) < 0.002
         ):
             failures.append(
-                f"Canakkale CI [{can_lo:.4f}, {can_hi:.4f}] != canonical "
-                f"{CANONICAL_CANAKKALE_CI}"
+                f"Canakkale CI [{can_lo:.4f}, {can_hi:.4f}] != canonical {CANONICAL_CANAKKALE_CI}"
             )
 
         dkasc_rows = table.loc[table["site_key"] == "alice_springs"]

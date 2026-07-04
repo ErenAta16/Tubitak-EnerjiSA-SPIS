@@ -61,13 +61,9 @@ def detect_inferred_cleaning_events(
 ) -> pd.DataFrame:
     """Infer wash-like events from heavy rain and abrupt PI recoveries."""
     rain_threshold = config.INFERRED_CLEANING_RAIN_MM if rain_mm is None else rain_mm
-    step_threshold = (
-        config.INFERRED_CLEANING_PI_STEP_PCT if pi_step_pct is None else pi_step_pct
-    )
+    step_threshold = config.INFERRED_CLEANING_PI_STEP_PCT if pi_step_pct is None else pi_step_pct
     min_gap = (
-        config.INFERRED_CLEANING_MIN_DAYS_BETWEEN
-        if min_days_between is None
-        else min_days_between
+        config.INFERRED_CLEANING_MIN_DAYS_BETWEEN if min_days_between is None else min_days_between
     )
 
     frame = daily.sort_values("date").copy()

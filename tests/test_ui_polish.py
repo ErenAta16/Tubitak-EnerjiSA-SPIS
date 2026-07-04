@@ -33,8 +33,8 @@ def test_ui_build_tag_is_p22() -> None:
 
 def test_config_toml_uses_teal_theme() -> None:
     text = CONFIG_TOML.read_text(encoding="utf-8")
-    assert "primaryColor = \"#0E7C66\"" in text
-    assert "backgroundColor = \"#FAFAF8\"" in text
+    assert 'primaryColor = "#0E7C66"' in text
+    assert 'backgroundColor = "#FAFAF8"' in text
 
 
 def test_t_returns_single_language() -> None:

@@ -39,8 +39,7 @@ def locate_ptf_csv(directory: Path | None = None) -> Path:
     matches = sorted(root.glob(CSV_GLOB))
     if not matches:
         raise FileNotFoundError(
-            f"No PTF CSV matching {CSV_GLOB} under {root}. "
-            "Drop the EPIAS export there and re-run."
+            f"No PTF CSV matching {CSV_GLOB} under {root}. Drop the EPIAS export there and re-run."
         )
     return matches[0]
 

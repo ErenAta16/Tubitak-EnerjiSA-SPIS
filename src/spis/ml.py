@@ -247,9 +247,7 @@ def build_modelling_frame(master: pd.DataFrame, segments: pd.DataFrame) -> pd.Da
     frame["month_cos"] = np.cos(2.0 * np.pi * month / 12.0)
     feature_cols = list(FEATURE_COLUMNS)
     before = len(frame)
-    frame = frame.dropna(
-        subset=feature_cols + [TARGET_ABSOLUTE, TARGET_SOILING_RATIO]
-    )
+    frame = frame.dropna(subset=feature_cols + [TARGET_ABSOLUTE, TARGET_SOILING_RATIO])
     frame = frame.sort_values("date").reset_index(drop=True)
     LOGGER.info(
         "ML modelling frame: %s rows (%s dropped for null features/targets)",
@@ -418,9 +416,7 @@ def blocked_cv_metrics(
     def _std(values: list[float]) -> float:
         return float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
 
-    framing = (
-        TARGET_SOILING_RATIO if target_col == TARGET_SOILING_RATIO else TARGET_ABSOLUTE
-    )
+    framing = TARGET_SOILING_RATIO if target_col == TARGET_SOILING_RATIO else TARGET_ABSOLUTE
     return CvMetrics(
         model_name=model_name,
         target_framing=framing,
@@ -443,9 +439,7 @@ def evaluate_test_models(
     test_metrics: list[ModelMetrics] = []
     cv_metrics: list[CvMetrics] = []
     fitted_models: dict[str, Any] = {}
-    framing = (
-        TARGET_SOILING_RATIO if target_col == TARGET_SOILING_RATIO else TARGET_ABSOLUTE
-    )
+    framing = TARGET_SOILING_RATIO if target_col == TARGET_SOILING_RATIO else TARGET_ABSOLUTE
 
     for model_name in model_names:
         cv_metrics.append(blocked_cv_metrics(split.train, target_col, model_name))
@@ -577,9 +571,7 @@ def pollution_verdict(importance: pd.DataFrame) -> str:
     pollution = POLLUTION_FEATURES
     ranked = importance.reset_index(drop=True)
     ranks = {
-        row["feature"]: idx + 1
-        for idx, row in ranked.iterrows()
-        if row["feature"] in pollution
+        row["feature"]: idx + 1 for idx, row in ranked.iterrows() if row["feature"] in pollution
     }
     top_pollutant = ranked.loc[ranked["feature"].isin(pollution)].iloc[0]
     n_features = len(ranked)
@@ -610,9 +602,7 @@ def _format_cv_cell(cv: CvMetrics, metric: str) -> str:
 
 
 def _metrics_row(model_name: str, metrics: ModelMetrics) -> str:
-    return (
-        f"| {model_name} | {metrics.mae:.5f} | {metrics.rmse:.5f} | {metrics.r2:.4f} |"
-    )
+    return f"| {model_name} | {metrics.mae:.5f} | {metrics.rmse:.5f} | {metrics.r2:.4f} |"
 
 
 def _save_figure(name: str, fig: plt.Figure, plot_frame: pd.DataFrame) -> None:
@@ -825,8 +815,7 @@ def plot_partial_dependence(
         baseline = float(avg[0])
         slope_pct = (float(avg[-1]) - baseline) / max(float(grid[-1] - grid[0]), 1.0) * 100.0
         ax.set_title(
-            f"PD days_since_wash (RF slope ~{slope_pct:.3f}%/day; "
-            f"pooled={p35_rate_pct:.3f}%/day)"
+            f"PD days_since_wash (RF slope ~{slope_pct:.3f}%/day; pooled={p35_rate_pct:.3f}%/day)"
         )
     else:
         ax.set_title(f"Partial dependence: {feature}")
@@ -950,9 +939,7 @@ def run_ml_analysis() -> dict[str, Any]:
     master = read_processed(MASTER_INPUT_NAME)
     segments = read_processed(SOILING_OUTPUT_NAME)
     robustness_path = config.DATA_PROCESSED / "soiling_robustness.parquet"
-    robustness = (
-        read_processed("soiling_robustness") if robustness_path.exists() else None
-    )
+    robustness = read_processed("soiling_robustness") if robustness_path.exists() else None
 
     frame = build_modelling_frame(master, segments)
     split = time_based_split(frame)
@@ -960,9 +947,7 @@ def run_ml_analysis() -> dict[str, Any]:
     panel_test, panel_cv, fitted_models = evaluate_test_models(
         split, TARGET_SOILING_RATIO, PANEL_MODELS
     )
-    absolute_test, absolute_cv, _ = evaluate_test_models(
-        split, TARGET_ABSOLUTE, LEGACY_MODELS
-    )
+    absolute_test, absolute_cv, _ = evaluate_test_models(split, TARGET_ABSOLUTE, LEGACY_MODELS)
 
     comparison = build_panel_comparison(panel_test, panel_cv)
     panel_verdict_text, investigation_model = panel_verdict(comparison)
@@ -985,12 +970,10 @@ def run_ml_analysis() -> dict[str, Any]:
         if investigation_model in TREE_PANEL_MODELS:
             x_train, _ = prepare_xy(split.train, TARGET_SOILING_RATIO)
             p35_rate = p35_soiling_rate_pct(segments, robustness)
-            plot_partial_dependence(
-                model, x_train, "days_since_wash", p35_rate_pct=p35_rate
-            )
-            top_pollutant = importance.loc[
-                importance["feature"].isin(POLLUTION_FEATURES)
-            ].iloc[0]["feature"]
+            plot_partial_dependence(model, x_train, "days_since_wash", p35_rate_pct=p35_rate)
+            top_pollutant = importance.loc[importance["feature"].isin(POLLUTION_FEATURES)].iloc[0][
+                "feature"
+            ]
             plot_partial_dependence(
                 model,
                 x_train,

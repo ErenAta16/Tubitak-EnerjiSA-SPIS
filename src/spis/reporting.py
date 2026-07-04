@@ -115,16 +115,16 @@ def collect_headline_metrics() -> pd.DataFrame:
         & (ml["target_framing"] == "soiling_ratio")
     ].iloc[0]
     ml_verdict_row = ml.loc[ml["record_type"] == "ml_verdict"].iloc[0]
-    panel_best = ml.loc[ml["record_type"] == "panel_comparison"].sort_values(
-        "cv_r2_mean", ascending=False
-    ).iloc[0]
+    panel_best = (
+        ml.loc[ml["record_type"] == "panel_comparison"]
+        .sort_values("cv_r2_mean", ascending=False)
+        .iloc[0]
+    )
     panel_any_non_negative = bool(
         (ml.loc[ml["record_type"] == "panel_comparison"]["cv_r2_mean"] >= 0).any()
     )
     pm10 = robustness.loc[robustness["record_type"] == "pollution_pm10"].iloc[0]
-    ground_pm10 = robustness.loc[
-        robustness["record_type"] == "pollution_ground_pm10_accumulated"
-    ]
+    ground_pm10 = robustness.loc[robustness["record_type"] == "pollution_ground_pm10_accumulated"]
     ground_p = (
         f"{ground_pm10.iloc[0]['p_value']:.3f}"
         if not ground_pm10.empty and pd.notna(ground_pm10.iloc[0]["p_value"])
@@ -307,9 +307,7 @@ def regenerate_figures() -> None:
     central = optimize.loc[optimize["record_type"] == "central_estimate"]
     actual = optimize.loc[optimize["record_type"] == "actual_interval"]
     sweep = optimize.loc[optimize["record_type"] == "sweep_point"]
-    pooled = float(
-        optimize.loc[optimize["segment_id"] == -1, "clean_baseline_kwh_day"].iloc[0]
-    )
+    pooled = float(optimize.loc[optimize["segment_id"] == -1, "clean_baseline_kwh_day"].iloc[0])
     central_price = float(central.iloc[0]["price_tl_mwh"])
     _, curve = optimal_interval_grid_search(
         config.WASH_COST_TL_CENTRAL, pooled, central_price, rate_band.point
@@ -357,12 +355,12 @@ Daily performance index PI = production / irradiation (kWh/day over Wh/m²/day).
 Temperature-corrected PI used for soiling fits. Clean observations exclude downtime,
 curtailment, fault, low-irradiation, and rain days (750 of 1026 days). Seven post-wash
 segments from Enerjisa washing logs. External data: NASA POWER, CAMS air quality,
-EPIAS PTF CSV (2023 hourly, annual mean {m['central_ptf_tl_mwh'].value} TL/MWh).
+EPIAS PTF CSV (2023 hourly, annual mean {m["central_ptf_tl_mwh"].value} TL/MWh).
 
 ## Soiling rate and robustness
 
-Clear-sky pooled Theil-Sen rate: **{m['soiling_rate_pct_per_day'].value} %/day**
-(uncertainty half-width {m['soiling_rate_ci_half_width'].value} %/day).
+Clear-sky pooled Theil-Sen rate: **{m["soiling_rate_pct_per_day"].value} %/day**
+(uncertainty half-width {m["soiling_rate_ci_half_width"].value} %/day).
 
 Per-segment rates:
 
@@ -372,53 +370,53 @@ Observed rates are a **lower bound** when the reference irradiance sensor co-soi
 
 ## Washing recovery
 
-Median post-wash recovery: **{m['median_wash_recovery_pct'].value} %** across segments.
+Median post-wash recovery: **{m["median_wash_recovery_pct"].value} %** across segments.
 
 ## Pollution test (honest verdict)
 
 Daily HAC regression on trend-removed PI residuals (accumulated since
 last wash). CAMS accumulated n~557; ground PM10 accumulated paired days
-{m['ground_pm10_accumulated_pairs'].value}:
-**{m['pollution_daily_hac_verdict'].value}**.
-CAMS PM10 accumulated HAC p = {m['pollution_pm10_hac_p_value'].value}; ground PM10
-accumulated HAC p = {m['pollution_ground_pm10_hac_p_value'].value} (Canakkale Merkez
+{m["ground_pm10_accumulated_pairs"].value}:
+**{m["pollution_daily_hac_verdict"].value}**.
+CAMS PM10 accumulated HAC p = {m["pollution_pm10_hac_p_value"].value}; ground PM10
+accumulated HAC p = {m["pollution_ground_pm10_hac_p_value"].value} (Canakkale Merkez
 UHKIA, urban proxy ~40-60 km from plant). Daily raw ground PM10 is reported in
 SOILING_ROBUSTNESS.md as a sensitivity check only. Segment-level correlations (n=7)
 are **weak, non-confirmatory** signals only.
 
-The 15-algorithm panel ({m['ml_panel_model_count'].value} algorithms, all blocked CV R2 negative)
+The 15-algorithm panel ({m["ml_panel_model_count"].value} algorithms, all blocked CV R2 negative)
 does not generalize beyond the days_since_wash trend; permutation importance was not
-reported. Held-out RF soiling_ratio test R2 is **{m['rf_test_r2'].value}** (legacy
-absolute-PI R2 = {m['ml_absolute_pi_rf_test_r2'].value}).
+reported. Held-out RF soiling_ratio test R2 is **{m["rf_test_r2"].value}** (legacy
+absolute-PI R2 = {m["ml_absolute_pi_rf_test_r2"].value}).
 
 ## Rain natural cleaning
 
-Mean PI recovery per rain event: **{m['rain_mean_pi_recovery'].value}** (near zero).
-Rain accounts for **{m['rain_share_positive_uplift'].value} %** of summed positive
+Mean PI recovery per rain event: **{m["rain_mean_pi_recovery"].value}** (near zero).
+Rain accounts for **{m["rain_share_positive_uplift"].value} %** of summed positive
 cleaning uplift vs scheduled washing.
 
 ## Economic optimum
 
-Real central PTF: **{m['central_ptf_tl_mwh'].value} TL/MWh** (2023 annual mean only;
+Real central PTF: **{m["central_ptf_tl_mwh"].value} TL/MWh** (2023 annual mean only;
 2024-2025 not supplied). Wash cost **150,000 TL remains ASSUMED**.
 
-Optimal interval T* = **{m['optimal_wash_interval_T_star'].value} days**
-(CI {m['optimal_interval_ci'].value} days). Previous assumed 2000 TL/MWh central
-price gave T* = {m['T_star_legacy_assumed_2000'].value} days.
+Optimal interval T* = **{m["optimal_wash_interval_T_star"].value} days**
+(CI {m["optimal_interval_ci"].value} days). Previous assumed 2000 TL/MWh central
+price gave T* = {m["T_star_legacy_assumed_2000"].value} days.
 
-Actual mean inter-wash gap: **{m['actual_mean_inter_wash_gap'].value} days**. At the
+Actual mean inter-wash gap: **{m["actual_mean_inter_wash_gap"].value} days**. At the
 2023 nominal price the plant appears to wash more often than the model optimum
 (over-washing), but if Enerjisa supplies a current-TL wash cost without rebasing the
 2023 PTF, the nominal price biases T* **longer** — keep the cadence verdict cautious.
 
 ## Machine learning corroboration
 
-The model panel compares **{m['ml_panel_model_count'].value}** scikit-learn algorithms on
+The model panel compares **{m["ml_panel_model_count"].value}** scikit-learn algorithms on
 within-segment **soiling_ratio**. Best blocked CV R2 =
-**{m['ml_panel_best_cv_r2'].value}** ({m['ml_panel_best_cv_r2'].source}). Any model
-with CV R2 >= 0: **{m['ml_panel_any_cv_r2_non_negative'].value}**. Held-out RF
-soiling_ratio test R2 = **{m['ml_soiling_ratio_rf_test_r2'].value}** (legacy absolute-PI
-RF R2 = **{m['ml_absolute_pi_rf_test_r2'].value}**). {m['ml_verdict'].value}
+**{m["ml_panel_best_cv_r2"].value}** ({m["ml_panel_best_cv_r2"].source}). Any model
+with CV R2 >= 0: **{m["ml_panel_any_cv_r2_non_negative"].value}**. Held-out RF
+soiling_ratio test R2 = **{m["ml_soiling_ratio_rf_test_r2"].value}** (legacy absolute-PI
+RF R2 = **{m["ml_absolute_pi_rf_test_r2"].value}**). {m["ml_verdict"].value}
 
 ## Limitations
 

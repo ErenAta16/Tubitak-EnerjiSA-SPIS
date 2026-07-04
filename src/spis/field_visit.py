@@ -48,9 +48,7 @@ def _load_washing_context() -> dict[str, Any]:
 def _site_coordinate_label(site_key: str, site) -> str:
     """Format coordinates for reports without disclosing precise Canakkale location."""
     if site_key == "canakkale" and config.PLANT_COORD_SOURCE != "env":
-        return (
-            "coarse public default (set PLANT_LAT/PLANT_LON in .env for precise location)"
-        )
+        return "coarse public default (set PLANT_LAT/PLANT_LON in .env for precise location)"
     return f"lat={site.lat}, lon={site.lon}"
 
 

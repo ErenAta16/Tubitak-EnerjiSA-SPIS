@@ -230,8 +230,7 @@ def select_energy_channel(daily: pd.DataFrame) -> tuple[str, dict[str, Any]]:
             {
                 "selected_channel": "power_integration",
                 "selection_reason": (
-                    "Active_Energy_Delivered_Received column absent; "
-                    "integrated Active_Power used."
+                    "Active_Energy_Delivered_Received column absent; integrated Active_Power used."
                 ),
                 "median_power_to_counter_ratio": None,
             }
