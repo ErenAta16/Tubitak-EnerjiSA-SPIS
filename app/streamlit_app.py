@@ -68,7 +68,7 @@ from app.ui_logic import (
 )
 from spis import config
 
-UI_BUILD = "2026-06-25-p22-visual-system"
+UI_BUILD = "2026-06-25-visual-system"
 
 st.set_page_config(page_title="SPIS", layout="wide", initial_sidebar_state="expanded")
 
