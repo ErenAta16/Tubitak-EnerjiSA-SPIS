@@ -7,6 +7,7 @@ all:
 
 integration:
 	$(PY) -m spis.run --stage all
+	$(PY) -m pytest tests -q -m integration
 	$(PY) scripts/run_all_verifiers.py
 
 test:

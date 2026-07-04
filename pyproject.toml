@@ -17,6 +17,10 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
 testpaths = ["tests"]
+addopts = "-m 'not integration'"
+markers = [
+    "integration: requires local proprietary or downloaded external data artifacts",
+]
 
 [tool.ruff]
 line-length = 100
