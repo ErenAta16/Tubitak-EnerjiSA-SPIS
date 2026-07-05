@@ -6,13 +6,29 @@ import re
 
 from app.models import SAMPLE_UPLOAD_KEY, DashboardSnapshot
 from spis.demo_plant import DEMO_PLANT_KEY
-from spis.external_validation import ALICE_SPRINGS_SITE_KEY
+from spis.public_examples import DKASC_KEY, PVDAQ_2107_KEY
 from spis.sites import DEFAULT_SITE
 
 BACKEND_MESSAGES: dict[str, tuple[str, str]] = {
-    "Synthetic demo plant loaded (no real plant data).": (
-        "Synthetic demo plant loaded (no real plant data).",
-        "Sentetik demo santral yüklendi (gerçek santral verisi yok).",
+    (
+        "Synthetic demo plant loaded. The real analysis in the TUBITAK 2209-B report "
+        "used real data from Enerjisa Canakkale, DKASC, and PVDAQ 2107."
+    ): (
+        "Synthetic demo plant loaded. The real analysis in the TUBITAK 2209-B report "
+        "used real data from Enerjisa Canakkale, DKASC, and PVDAQ 2107.",
+        "Sentetik demo santral yüklendi. Gerçek analiz TÜBİTAK 2209-B raporunda "
+        "Enerjisa Çanakkale, DKASC ve PVDAQ 2107 sahalarının gerçek verileriyle "
+        "yürütülmüştür.",
+    ),
+    "Real-site data loaded — NREL PVDAQ 2107, public data (not Enerjisa data).": (
+        "Real-site data loaded — NREL PVDAQ 2107, public data (not Enerjisa data).",
+        "Gerçek saha verisi yüklendi — NREL PVDAQ 2107, halka açık veri "
+        "(Enerjisa verisi değildir).",
+    ),
+    ("Real-site data loaded — DKASC Alice Springs array 14, public data (not Enerjisa data)."): (
+        "Real-site data loaded — DKASC Alice Springs array 14, public data (not Enerjisa data).",
+        "Gerçek saha verisi yüklendi — DKASC Alice Springs dizi 14, halka açık veri "
+        "(Enerjisa verisi değildir).",
     ),
     (
         "Built-in sample upload (120 days, synthetic soiling ~0.15%/day). "
@@ -26,10 +42,6 @@ BACKEND_MESSAGES: dict[str, tuple[str, str]] = {
     "Canakkale example loaded from local processed SPIS outputs.": (
         "Canakkale example loaded from local processed SPIS outputs.",
         "Çanakkale örneği yerel SPIS çıktılarından yüklendi.",
-    ),
-    "Alice Springs example loaded from local external validation outputs.": (
-        "Alice Springs example loaded from local external validation outputs.",
-        "Alice Springs örneği yerel dış doğrulama çıktılarından yüklendi.",
     ),
     "Example data not built yet. Run the SPIS pipeline locally first.": (
         "Example data not built yet. Run the SPIS pipeline locally first.",
@@ -94,10 +106,8 @@ def site_label(site_key: str, default: str):
         DEMO_PLANT_KEY: ("Demo Plant (synthetic)", "Demo Santral (sentetik)"),
         SAMPLE_UPLOAD_KEY: ("Sample CSV (built-in)", "Örnek CSV (gömülü)"),
         DEFAULT_SITE: ("Canakkale Hybrid GES (local)", "Çanakkale Hibrit GES (yerel)"),
-        ALICE_SPRINGS_SITE_KEY: (
-            "Alice Springs / DKASC (local)",
-            "Alice Springs / DKASC (yerel)",
-        ),
+        PVDAQ_2107_KEY: ("PVDAQ 2107 (public site)", "PVDAQ 2107 (halka açık saha)"),
+        DKASC_KEY: ("DKASC (public site)", "DKASC (halka açık saha)"),
         "upload": ("Uploaded data", "Yüklenen veri"),
     }
 

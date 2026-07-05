@@ -36,12 +36,14 @@ def test_generate_demo_plant_is_deterministic(tmp_path) -> None:
     assert hash_a == hash_b
 
 
-def test_only_demo_example_data_is_tracked() -> None:
+def test_only_approved_example_data_is_tracked() -> None:
     tracked = subprocess.check_output(["git", "ls-files", "data/"], text=True).splitlines()
     tracked = [line for line in tracked if line.strip()]
-    assert tracked, "Expected committed demo example under data/"
-    assert all(
-        line.startswith("data/examples/demo_plant/") or line.endswith(".gitkeep")
-        for line in tracked
+    allowed = (
+        "data/examples/demo_plant/",
+        "data/examples/pvdaq_2107/",
+        "data/examples/dkasc/",
     )
-    assert any(line.startswith("data/examples/demo_plant/") for line in tracked)
+    assert tracked, "Expected committed examples under data/"
+    assert all(line.startswith(allowed) or line.endswith(".gitkeep") for line in tracked)
+    assert all(any(line.startswith(prefix) for line in tracked) for prefix in allowed)

@@ -31,6 +31,15 @@ from spis.optimize import (
     optimal_interval_grid_search,
     price_tl_per_kwh,
 )
+from spis.public_examples import (
+    DKASC_KEY,
+    DKASC_NAME,
+    PUBLIC_EXAMPLE_KEYS,
+    PVDAQ_2107_KEY,
+    PVDAQ_2107_NAME,
+    load_public_headline_metrics,
+    public_example_available,
+)
 from spis.robustness import ROBUSTNESS_OUTPUT_NAME
 from spis.sites import DEFAULT_SITE, get_site, site_processed_path
 from spis.soiling import MASTER_INPUT_NAME, SOILING_OUTPUT_NAME
@@ -59,22 +68,22 @@ def example_site_available(site_key: str) -> bool:
     """Return True when processed artifacts exist for a built-in example site."""
     if site_key == DEMO_PLANT_KEY:
         return demo_data_available()
-    if site_key == ALICE_SPRINGS_SITE_KEY:
-        return site_processed_path(site_key, MASTER_INPUT_NAME).exists()
+    if site_key in PUBLIC_EXAMPLE_KEYS:
+        return public_example_available(site_key)
     if site_key == DEFAULT_SITE:
         return (config.DATA_PROCESSED / f"{MASTER_INPUT_NAME}.parquet").exists()
     return False
 
 
 def list_example_site_options() -> list[ExampleSiteOption]:
-    """Return example sites that should appear in the UI (demo always first)."""
-    options = [ExampleSiteOption(DEMO_PLANT_NAME, DEMO_PLANT_KEY)]
+    """Return bundled public examples plus any locally available proprietary site."""
+    options = [
+        ExampleSiteOption(DEMO_PLANT_NAME, DEMO_PLANT_KEY),
+        ExampleSiteOption(PVDAQ_2107_NAME, PVDAQ_2107_KEY),
+        ExampleSiteOption(DKASC_NAME, DKASC_KEY),
+    ]
     if example_site_available(DEFAULT_SITE):
         options.append(ExampleSiteOption("Canakkale Hybrid GES (local)", DEFAULT_SITE))
-    if example_site_available(ALICE_SPRINGS_SITE_KEY):
-        options.append(
-            ExampleSiteOption("Alice Springs / DKASC (local)", ALICE_SPRINGS_SITE_KEY)
-        )
     return options
 
 
@@ -121,22 +130,30 @@ def validate_upload_frame(frame: pd.DataFrame) -> UploadValidation:
     return UploadValidation(True, f"Validated {len(working)} daily rows.", working)
 
 
-
-def plain_language_soiling_line(rate_pct_per_day: float | None, lang: str) -> str:
+def plain_language_soiling_line(
+    rate_pct_per_day: float | None,
+    lang: str,
+    ci_lower: float | None = None,
+    ci_upper: float | None = None,
+) -> str:
     """One-line explanation of the headline soiling rate."""
     if rate_pct_per_day is None:
         return "Soiling rate unavailable." if lang == "EN" else "Kirlenme hızı hesaplanamadı."
+    if ci_lower is not None and ci_upper is not None and ci_lower <= 0.0 <= ci_upper:
+        if lang == "TR":
+            return "Güven aralığı sıfırı kesiyor; ölçülebilir bir kirlenme düşüşü gösterilemedi."
+        return (
+            "The confidence interval crosses zero; no measurable soiling decline was established."
+        )
+    if rate_pct_per_day >= 0.0:
+        if lang == "TR":
+            return "Nokta tahmini performans düşüşü göstermiyor."
+        return "The point estimate does not show a performance decline."
     drop = abs(rate_pct_per_day)
     if lang == "TR":
         pct = format_percent_in_text(drop, lang)
-        return (
-            f"Yıkamalar arasında performans günde yaklaşık {pct} düşüyor "
-            "(açık gökyüzü tahmini)."
-        )
-    return (
-        f"Performance drops about {drop:.2f}% per day between washes "
-        "(clear-sky estimate)."
-    )
+        return f"Yıkamalar arasında performans günde yaklaşık {pct} düşüyor (açık gökyüzü tahmini)."
+    return f"Performance drops about {drop:.2f}% per day between washes (clear-sky estimate)."
 
 
 def _robustness_verdict(site_key: str) -> str:
@@ -183,7 +200,10 @@ def load_demo_dashboard_snapshot() -> DashboardSnapshot:
         site_key=DEMO_PLANT_KEY,
         site_name=DEMO_PLANT_NAME,
         available=True,
-        message="Synthetic demo plant loaded (no real plant data).",
+        message=(
+            "Synthetic demo plant loaded. The real analysis in the TUBITAK 2209-B report "
+            "used real data from Enerjisa Canakkale, DKASC, and PVDAQ 2107."
+        ),
         clear_sky_rate_pct_per_day=rate,
         clear_sky_ci_lower=metrics["clear_sky_ci_lower"],
         clear_sky_ci_upper=metrics["clear_sky_ci_upper"],
@@ -196,10 +216,64 @@ def load_demo_dashboard_snapshot() -> DashboardSnapshot:
     )
 
 
+def load_public_dashboard_snapshot(site_key: str) -> DashboardSnapshot:
+    """Load one committed public real-site snapshot without local processed data."""
+    site_names = {
+        PVDAQ_2107_KEY: PVDAQ_2107_NAME,
+        DKASC_KEY: DKASC_NAME,
+    }
+    messages = {
+        PVDAQ_2107_KEY: (
+            "Real-site data loaded — NREL PVDAQ 2107, public data (not Enerjisa data)."
+        ),
+        DKASC_KEY: (
+            "Real-site data loaded — DKASC Alice Springs array 14, public data (not Enerjisa data)."
+        ),
+    }
+    if not public_example_available(site_key):
+        return DashboardSnapshot(
+            site_key=site_key,
+            site_name=site_names.get(site_key, site_key),
+            available=False,
+            message="Bundled public example snapshot is missing.",
+            clear_sky_rate_pct_per_day=None,
+            clear_sky_ci_lower=None,
+            clear_sky_ci_upper=None,
+            pollution_verdict="",
+            daily_energy_kwh=None,
+            rate_band=None,
+            master=None,
+        )
+    metrics = load_public_headline_metrics(site_key)
+    rate = metrics["clear_sky_rate_pct_per_day"]
+    return DashboardSnapshot(
+        site_key=site_key,
+        site_name=site_names[site_key],
+        available=True,
+        message=messages[site_key],
+        clear_sky_rate_pct_per_day=rate,
+        clear_sky_ci_lower=metrics["clear_sky_ci_lower"],
+        clear_sky_ci_upper=metrics["clear_sky_ci_upper"],
+        pollution_verdict=metrics["pollution_verdict"],
+        daily_energy_kwh=metrics["daily_energy_kwh"],
+        rate_band=metrics["rate_band"],
+        master=metrics["master"],
+        segments=metrics["segments"],
+        plain_language_soiling=plain_language_soiling_line(
+            rate,
+            "EN",
+            metrics["clear_sky_ci_lower"],
+            metrics["clear_sky_ci_upper"],
+        ),
+    )
+
+
 def load_dashboard_snapshot(site_key: str) -> DashboardSnapshot:
     """Load precomputed metrics for a built-in example site."""
     if site_key == DEMO_PLANT_KEY:
         return load_demo_dashboard_snapshot()
+    if site_key in PUBLIC_EXAMPLE_KEYS:
+        return load_public_dashboard_snapshot(site_key)
 
     site = get_site(site_key)
     if not example_site_available(site_key):
@@ -247,56 +321,19 @@ def load_dashboard_snapshot(site_key: str) -> DashboardSnapshot:
             plain_language_soiling=plain_language_soiling_line(rate, "EN"),
         )
 
-    if comparison is None:
-        return DashboardSnapshot(
-            site_key=site_key,
-            site_name=site.name,
-            available=False,
-            message="Run `python -m spis.run --stage external_validation` first.",
-            clear_sky_rate_pct_per_day=None,
-            clear_sky_ci_lower=None,
-            clear_sky_ci_upper=None,
-            pollution_verdict="",
-            daily_energy_kwh=None,
-            rate_band=None,
-            master=master,
-            segments=segments,
-        )
-
-    alice_rows = comparison.loc[comparison["site_key"] == ALICE_SPRINGS_SITE_KEY]
-    if "array_number" in alice_rows.columns:
-        primary = alice_rows.loc[alice_rows["array_number"] == "13"]
-        alice_row = primary.iloc[0] if not primary.empty else alice_rows.iloc[0]
-    else:
-        alice_row = alice_rows.iloc[0]
-    rate_band = SoilingRateBand(
-        point=abs(float(alice_row["clear_sky_pooled_rate_pct_per_day"])) / 100.0,
-        low=abs(float(alice_row["clear_sky_ci_lower"])) / 100.0,
-        high=abs(float(alice_row["clear_sky_ci_upper"])) / 100.0,
-        source="Alice Springs clear-sky pooled (inferred cleanings)",
-        half_width=0.0,
-    )
-    pollution = (
-        "CAMS dust/PM10 significantly predicts PI decay residuals."
-        if bool(alice_row["pollution_significant"])
-        else "Daily CAMS pollution does not significantly predict PI decay residuals."
-    )
-    rate = float(alice_row["clear_sky_pooled_rate_pct_per_day"])
     return DashboardSnapshot(
         site_key=site_key,
         site_name=site.name,
-        available=True,
-        message="Alice Springs example loaded from local external validation outputs.",
-        clear_sky_rate_pct_per_day=rate,
-        clear_sky_ci_lower=float(alice_row["clear_sky_ci_lower"]),
-        clear_sky_ci_upper=float(alice_row["clear_sky_ci_upper"]),
-        pollution_verdict=pollution,
-        daily_energy_kwh=daily_energy,
-        rate_band=rate_band,
+        available=False,
+        message="Example data not built yet. Run the SPIS pipeline locally first.",
+        clear_sky_rate_pct_per_day=None,
+        clear_sky_ci_lower=None,
+        clear_sky_ci_upper=None,
+        pollution_verdict="",
+        daily_energy_kwh=None,
+        rate_band=None,
         master=master,
         segments=segments,
-        comparison_table=comparison,
-        plain_language_soiling=plain_language_soiling_line(rate, "EN"),
     )
 
 

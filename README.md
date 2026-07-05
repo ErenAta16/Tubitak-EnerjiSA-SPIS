@@ -3,15 +3,16 @@
 SPIS turns solar-plant operating data into clear soiling-loss estimates and an economically informed panel-washing schedule.
 
 > **Data confidentiality:** Raw Enerjisa SCADA and washing logs are proprietary and are
-> not included in this public repository. The bundled demo uses synthetic data only.
-> See [DATA_USE.md](DATA_USE.md) for licensing, reuse rules, and partner-permission notes.
+> not included in this public repository. Bundled real-site examples use only public
+> external data. See [DATA_USE.md](DATA_USE.md) for licensing, reuse rules, and
+> partner-permission notes.
 
 [![CI](https://github.com/ErenAta16/Tubitak-EnerjiSA-SPIS/actions/workflows/ci.yml/badge.svg)](https://github.com/ErenAta16/Tubitak-EnerjiSA-SPIS/actions/workflows/ci.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 [![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 
-**Live demo:** deployment is pending. The complete synthetic-data dashboard runs locally with the quickstart below.
+**Live demo:** deployment is pending. The complete public-data dashboard runs locally with the quickstart below.
 
 ![SPIS dashboard overview](docs/screenshots/overview.png)
 
@@ -25,8 +26,8 @@ pip install -r requirements-streamlit.txt && streamlit run app/streamlit_app.py
 
 ## Product
 
-The Streamlit app is a working, bilingual interface for exploring the synthetic demo
-plant or a user-supplied daily CSV. It provides:
+The Streamlit app is a working, bilingual interface for exploring the synthetic demo,
+two bundled public real sites, or a user-supplied daily CSV. It provides:
 
 - headline clear-sky soiling rate and uncertainty;
 - production, irradiation, performance-index, and segment charts;
@@ -35,9 +36,13 @@ plant or a user-supplied daily CSV. It provides:
 - a downloadable Markdown summary; and
 - English and Turkish display modes.
 
-The default **Demo Plant (synthetic)** is loaded from `data/examples/demo_plant/`, so
-the public app and screenshots contain no proprietary plant data. Local Canakkale and
-comparison-site views appear only when their gitignored processed outputs exist.
+The public demo includes two real, openly licensed comparison sites (NREL PVDAQ 2107
+and DKASC, Alice Springs) validated in the project's external-validation study, in
+addition to the synthetic Demo Plant. Enerjisa's own plant data remains proprietary
+and is not published pending partner permission (see [DATA_USE.md](DATA_USE.md)).
+
+All three bundled options load from `data/examples/`. The Enerjisa Canakkale option
+appears only when its gitignored local `data/processed/` output exists.
 
 ### Run and deploy
 
@@ -50,7 +55,7 @@ streamlit run app/streamlit_app.py
 
 For Streamlit Community Cloud, select this repository and set the main file to
 `app/streamlit_app.py`, Python to 3.12, and dependencies to
-`requirements-streamlit.txt`. No secrets are required for the synthetic demo.
+`requirements-streamlit.txt`. No secrets are required for the bundled examples.
 
 ### Setup files
 
@@ -66,7 +71,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the test, lint, and verification work
 ```text
 app/                Streamlit product and presentation layer
 src/spis/           Analysis library, data loaders, models, and reports
-data/examples/      Synthetic public demo snapshot
+data/examples/      Synthetic and public real-site demo snapshots
 data/raw/           Proprietary plant inputs (local and gitignored)
 data/processed/     Generated analysis tables (local and gitignored)
 reports/            Research reports and publication figures
@@ -107,6 +112,8 @@ performance between washes, and which washing interval minimizes total cost.
 | Open-Meteo / CAMS | Gridded air-quality context | Public API |
 | Turkish national air-quality network | Ground PM10/PM2.5 cross-check | Public session form |
 | EPIAS PTF CSV | 2023 electricity price for economic optimization | Public export |
+| NREL/OEDI PVDAQ 2107 | Real-site comparison snapshot | Public archive |
+| DKASC Alice Springs array 14 | Real-site comparison snapshot | Public download |
 
 Precise Canakkale coordinates must be supplied locally through `PLANT_LAT` and
 `PLANT_LON` in `.env`; public defaults are intentionally coarse.

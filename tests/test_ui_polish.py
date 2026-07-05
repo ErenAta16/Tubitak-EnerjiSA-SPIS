@@ -27,8 +27,8 @@ STREAMLIT_APP = ROOT / "app" / "streamlit_app.py"
 CONFIG_TOML = ROOT / ".streamlit" / "config.toml"
 
 
-def test_ui_build_tag_is_public_facing() -> None:
-    assert UI_BUILD == "2026-06-25-visual-system"
+def test_ui_build_tag_is_p24() -> None:
+    assert UI_BUILD == "2026-07-05-p24-real-site-demo"
 
 
 def test_config_toml_uses_teal_theme() -> None:

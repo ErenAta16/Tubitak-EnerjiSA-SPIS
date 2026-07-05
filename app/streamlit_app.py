@@ -8,9 +8,7 @@ SOURCE_EXAMPLE = "example"
 SOURCE_UPLOAD = "upload"
 SOURCE_OPTIONS = (SOURCE_EXAMPLE, SOURCE_UPLOAD)
 LANG_OPTIONS = ("TR", "EN")
-DATA_USE_URL = (
-    "https://github.com/ErenAta16/Tubitak-EnerjiSA-SPIS/blob/main/DATA_USE.md"
-)
+DATA_USE_URL = "https://github.com/ErenAta16/Tubitak-EnerjiSA-SPIS/blob/main/DATA_USE.md"
 
 
 def _refresh_app_modules() -> None:
@@ -68,7 +66,7 @@ from app.ui_logic import (
 )
 from spis import config
 
-UI_BUILD = "2026-06-25-visual-system"
+UI_BUILD = "2026-07-05-p24-real-site-demo"
 
 st.set_page_config(page_title="SPIS", layout="wide", initial_sidebar_state="expanded")
 
@@ -201,16 +199,19 @@ def render_hero_and_chips(snapshot: DashboardSnapshot, lang: str) -> None:
     n_days = len(snapshot.master) if snapshot.master is not None else 0
     n_segments = snapshot.segment_count()
     rate_text = format_headline_rate(rate, na=na, lang=lang)
-    detail = plain_language_soiling_line(rate, lang)
+    detail = plain_language_soiling_line(
+        rate,
+        lang,
+        snapshot.clear_sky_ci_lower,
+        snapshot.clear_sky_ci_upper,
+    )
     energy_value = (
         f"{format_integer(snapshot.daily_energy_kwh, lang, na=na)} {_t('energy_unit', lang)}"
         if snapshot.daily_energy_kwh
         else na
     )
     segments_value = format_integer(n_segments, lang, na=na) if n_segments else na
-    range_value = (
-        f"{format_integer(n_days, lang, na=na)} {_t('days_unit', lang)}" if n_days else na
-    )
+    range_value = f"{format_integer(n_days, lang, na=na)} {_t('days_unit', lang)}" if n_days else na
     st.markdown(
         f'<div class="spis-hero-card">'
         f'<p class="spis-hero-label">{_t("hero_soiling_label", lang)}</p>'
@@ -232,7 +233,7 @@ def render_hero_and_chips(snapshot: DashboardSnapshot, lang: str) -> None:
 def render_footer(lang: str) -> None:
     st.markdown(
         f'<p class="spis-footer">'
-        f'{_t("footer_text", lang)} '
+        f"{_t('footer_text', lang)} "
         f'<a href="{DATA_USE_URL}">{_t("footer_data_use", lang)}</a>'
         f" · {UI_BUILD}</p>",
         unsafe_allow_html=True,

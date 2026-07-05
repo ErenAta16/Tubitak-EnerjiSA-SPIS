@@ -7,6 +7,12 @@ data/external/*
 !data/examples/demo_plant/**
 !data/examples/demo_plant/README.md
 !data/examples/demo_plant/*.parquet
+!data/examples/pvdaq_2107/**
+!data/examples/pvdaq_2107/README.md
+!data/examples/pvdaq_2107/*.parquet
+!data/examples/dkasc/**
+!data/examples/dkasc/README.md
+!data/examples/dkasc/*.parquet
 
 # secrets
 .env
