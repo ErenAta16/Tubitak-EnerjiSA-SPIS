@@ -7,7 +7,7 @@ system 2107 is documented in the
 [OEDI PVDAQ data guide](https://github.com/openEDI/documentation/blob/main/pvdaq.md).
 
 The snapshot reuses the PVDAQ 2107 processing and validation from the project's
-P17-equivalent external-validation work in `reports/EXTERNAL_VALIDATION.md`. It is
+external-validation study in `reports/EXTERNAL_VALIDATION.md`. It is
 safe for public distribution and contains no Enerjisa data or fields, no Enerjisa
 production figures, and no Canakkale coordinates.
 

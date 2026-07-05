@@ -8,8 +8,8 @@ study. The source is Desert Knowledge Australia Solar Centre's public
 reuse remains subject to the provider's
 [terms and citation requirements](https://dkasolarcentre.com.au/download/terms-conditions).
 
-The snapshot reuses the P17-equivalent validation workflow documented in
-`reports/EXTERNAL_VALIDATION.md`. It is public data and contains no Enerjisa data or
+The snapshot reuses the validation workflow from the project's external-validation
+study documented in `reports/EXTERNAL_VALIDATION.md`. It is public data and contains no Enerjisa data or
 fields, no Enerjisa production figures, and no Canakkale coordinates.
 
 Regenerate from the locally cached public DKASC, NASA POWER, and CAMS inputs:
